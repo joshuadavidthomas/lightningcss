@@ -8,8 +8,7 @@ name: release-pypi
 on:
   push:
     branches:
-      - main
-      - master
+      - pypi
     tags:
       - "*"
   pull_request:
@@ -19,22 +18,38 @@ permissions:
   contents: read
 
 jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v2
+      - name: Update version for release
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          just update-metadata
+          git config --global user.name 'GitHub Action'
+          git config --global user.email 'action@github.com'
+          git add pyproject.toml
+          git commit -m "🧹 sync version from package.json to pyproject.toml for release"
+          git push
+
   linux:
     runs-on: ${{ matrix.platform.runner }}
+    needs: update-version
     strategy:
       matrix:
         platform:
-          - runner: ubuntu-22.04
+          - runner: ubuntu-latest
             target: x86_64
-          - runner: ubuntu-22.04
+          - runner: ubuntu-latest
             target: x86
-          - runner: ubuntu-22.04
+          - runner: ubuntu-latest
             target: aarch64
-          - runner: ubuntu-22.04
+          - runner: ubuntu-latest
             target: armv7
-          - runner: ubuntu-22.04
+          - runner: ubuntu-latest
             target: s390x
-          - runner: ubuntu-22.04
+          - runner: ubuntu-latest
             target: ppc64le
     steps:
       - uses: actions/checkout@v4
@@ -53,22 +68,23 @@ jobs:
 
   musllinux:
     runs-on: ${{ matrix.platform.runner }}
+    needs: update-version
     strategy:
       fail-fast: false
       matrix:
         platform:
-          - runner: ubuntu-22.04
+          - runner: ubuntu-latest
             target: x86_64
-          - runner: ubuntu-22.04
+          - runner: ubuntu-latest
             target: x86
           # error: linker `aarch64-linux-musl-gcc` not found
           # |
           # = note: No such file or directory (os error 2)
           #
           # error: could not compile `browserslist-rs` (lib) due to 1 previous error
-          # - runner: ubuntu-22.04
+          # - runner: ubuntu-latest
           #   target: aarch64
-          - runner: ubuntu-22.04
+          - runner: ubuntu-latest
             target: armv7
     steps:
       - uses: actions/checkout@v4
@@ -87,6 +103,7 @@ jobs:
 
   windows:
     runs-on: ${{ matrix.platform.runner }}
+    needs: update-version
     strategy:
       matrix:
         platform:
@@ -110,6 +127,7 @@ jobs:
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
+    needs: update-version
     strategy:
       matrix:
         platform:
@@ -133,6 +151,7 @@ jobs:
 
   sdist:
     runs-on: ubuntu-latest
+    needs: update-version
     steps:
       - uses: actions/checkout@v4
       - name: Build sdist
