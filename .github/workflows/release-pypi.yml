@@ -61,11 +61,12 @@ jobs:
           - runner: ubuntu-22.04
             target: x86
           - runner: ubuntu-22.04
-            target: unknown
+            target: aarch64
           - runner: ubuntu-22.04
             target: armv7
     steps:
       - uses: actions/checkout@v4
+      - run: rustc --print target-list
       - name: Install cross-compilation tools
         run: |
           sudo apt-get update
