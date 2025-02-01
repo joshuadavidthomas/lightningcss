@@ -38,6 +38,24 @@ jobs:
             target: ppc64le
     steps:
       - uses: actions/checkout@v4
+      - name: Install cross-compilation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl musl-dev musl-tools
+          case "${{ matrix.platform.target }}" in
+            "aarch64")
+              sudo apt-get install -y musl-dev-arm64 gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+              sudo ln -s /usr/bin/aarch64-linux-gnu-gcc /usr/bin/aarch64-linux-musl-gcc
+              ;;
+            "armv7")
+              sudo apt-get install -y musl-dev-armhf gcc-arm-linux-gnueabihf binutils-arm-linux-gnueabihf
+              sudo ln -s /usr/bin/arm-linux-gnueabihf-gcc /usr/bin/arm-linux-musl-gcc
+              ;;
+            "x86")
+              sudo apt-get install -y musl-dev-i386 gcc-i686-linux-gnu binutils-i686-linux-gnu
+              sudo ln -s /usr/bin/i686-linux-gnu-gcc /usr/bin/i686-linux-musl-gcc
+              ;;
+          esac
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
