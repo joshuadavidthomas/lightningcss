@@ -71,7 +71,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist
+          args: --release --out dist ${{ matrix.platform.arch == 'aarch64' && '--compatibility 2_17' || ''}}
           sccache: "true"
           manylinux: musllinux_1_2
       - name: Upload wheels
