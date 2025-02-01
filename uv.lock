@@ -1,0 +1,7 @@
+version = 1
+requires-python = ">=3.9"
+
+[[package]]
+name = "lightningcss-cli"
+version = "1.29.1"
+source = { editable = "." }
