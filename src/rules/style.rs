@@ -173,8 +173,8 @@ impl<'i, T> StyleRule<'i, T> {
 
   pub(crate) fn update_prefix(&mut self, context: &mut MinifyContext<'_, 'i>) {
     self.vendor_prefix = get_prefix(&self.selectors);
-    if self.vendor_prefix.contains(VendorPrefix::None) && context.targets.should_compile_selectors() {
-      self.vendor_prefix = downlevel_selectors(self.selectors.0.as_mut_slice(), *context.targets);
+    if self.vendor_prefix.contains(VendorPrefix::None) && context.targets.current.should_compile_selectors() {
+      self.vendor_prefix = downlevel_selectors(self.selectors.0.as_mut_slice(), context.targets.current);
     }
   }
 }
@@ -245,7 +245,7 @@ impl<'a, 'i, T: ToCss> StyleRule<'i, T> {
     W: std::fmt::Write,
   {
     // If supported, or there are no targets, preserve nesting. Otherwise, write nested rules after parent.
-    let supports_nesting = self.rules.0.is_empty() || !should_compile!(dest.targets, Nesting);
+    let supports_nesting = self.rules.0.is_empty() || !should_compile!(dest.targets.current, Nesting);
     let len = self.declarations.declarations.len() + self.declarations.important_declarations.len();
     let has_declarations = supports_nesting || len > 0 || self.rules.0.is_empty();
 
