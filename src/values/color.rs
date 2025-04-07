@@ -12,7 +12,7 @@ use crate::macros::enum_property;
 use crate::printer::Printer;
 use crate::properties::PropertyId;
 use crate::rules::supports::SupportsCondition;
-use crate::targets::{should_compile, Browsers, Targets};
+use crate::targets::{should_compile, Browsers, Features, Targets};
 use crate::traits::{FallbackValues, IsCompatible, Parse, ToCss};
 #[cfg(feature = "visitor")]
 use crate::visitor::{Visit, VisitTypes, Visitor};
@@ -444,6 +444,40 @@ impl CssColor {
       _ => unreachable!(),
     }
   }
+
+  pub(crate) fn get_features(&self) -> Features {
+    let mut features = Features::empty();
+    match self {
+      CssColor::LAB(labcolor) => match &**labcolor {
+        LABColor::LAB(_) | LABColor::LCH(_) => {
+          features |= Features::LabColors;
+        }
+        LABColor::OKLAB(_) | LABColor::OKLCH(_) => {
+          features |= Features::OklabColors;
+        }
+      },
+      CssColor::Predefined(predefined_color) => {
+        features |= Features::ColorFunction;
+        match &**predefined_color {
+          PredefinedColor::DisplayP3(_) => {
+            features |= Features::P3Colors;
+          }
+          _ => {}
+        }
+      }
+      CssColor::Float(_) => {
+        features |= Features::SpaceSeparatedColorNotation;
+      }
+      CssColor::LightDark(light, dark) => {
+        features |= Features::LightDark;
+        features |= light.get_features();
+        features |= dark.get_features();
+      }
+      _ => {}
+    }
+
+    features
+  }
 }
 
 impl IsCompatible for CssColor {
@@ -542,7 +576,7 @@ impl ToCss for CssColor {
           }
         } else {
           // If the #rrggbbaa syntax is not supported by the browser targets, output rgba()
-          if should_compile!(dest.targets, HexAlphaColors) {
+          if should_compile!(dest.targets.current, HexAlphaColors) {
             // If the browser doesn't support `#rrggbbaa` color syntax, it is converted to `transparent` when compressed(minify = true).
             // https://www.w3.org/TR/css-color-4/#transparent-black
             if dest.minify && color.red == 0 && color.green == 0 && color.blue == 0 && color.alpha == 0 {
@@ -595,7 +629,7 @@ impl ToCss for CssColor {
         CssColor::from(srgb).to_css(dest)
       }
       CssColor::LightDark(light, dark) => {
-        if should_compile!(dest.targets, LightDark) {
+        if should_compile!(dest.targets.current, LightDark) {
           dest.write_str("var(--lightningcss-light")?;
           dest.delim(',', false)?;
           light.to_css(dest)?;
