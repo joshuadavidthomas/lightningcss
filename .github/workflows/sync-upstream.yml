@@ -1,0 +1,86 @@
+name: sync-upstream
+
+on:
+  # schedule:
+  #   - cron: "0 7 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: python
+
+      - name: Configure git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Add upstream remote and fetch
+        run: |
+          git remote add upstream https://github.com/parcel-bundler/lightningcss || true
+          git fetch upstream --tags
+
+      - name: Merge upstream/master into python (preserve packaging files)
+        run: |
+          set -e
+          # Try a regular merge preferring our branch for conflicts
+          if ! git merge upstream/master -X ours --no-edit; then
+            echo "Merge failed, attempting rebase with theirs"
+            git merge --abort || true
+            git rebase upstream/master -X theirs
+          fi
+
+      - uses: extractions/setup-just@v2
+
+      - name: Update pyproject version from package.json (no push yet)
+        run: |
+          just update-metadata
+          if [[ -n $(git status --porcelain) ]]; then
+            git add pyproject.toml
+            git commit -m "🧹 sync version from package.json to pyproject.toml for release"
+          else
+            echo "No pyproject changes needed"
+          fi
+
+      - name: Determine latest upstream version tag
+        id: latest
+        run: |
+          # Get latest semver-looking tag from upstream (vX.Y.Z)
+          LATEST_TAG=$(git tag -l --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
+          if [[ -z "$LATEST_TAG" ]]; then
+            echo "No tags found" >&2
+            exit 1
+          fi
+          echo "latest=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      - name: Ensure tag exists on python branch commit
+        run: |
+          VERSION=${{ steps.latest.outputs.latest }}
+          echo "Latest tag is $VERSION"
+          # If tag already exists on origin, skip creating it
+          if git ls-remote --tags origin "$VERSION" | grep -q "$VERSION"; then
+            echo "Tag $VERSION already exists on origin; not creating"
+          else
+            # Create tag at current HEAD of python (includes packaging + version sync)
+            git tag "$VERSION"
+          fi
+
+      - name: Push python branch and new tag (if any)
+        run: |
+          git push origin python
+          # Push only the tag if it exists locally and not on origin
+          VERSION=${{ steps.latest.outputs.latest }}
+          if git show-ref --tags --verify --quiet "refs/tags/$VERSION" && ! git ls-remote --tags origin "$VERSION" | grep -q "$VERSION"; then
+            git push origin "$VERSION"
+          fi
