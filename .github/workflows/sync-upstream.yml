@@ -104,28 +104,58 @@ jobs:
         if: ${{ inputs.dry_run }}
         run: |
           VERSION=${{ steps.latest.outputs.latest }}
+          HEADSHA=$(git rev-parse HEAD)
+          LOCAL_TAG_SHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}" || true)
           if git ls-remote --tags origin "$VERSION^{}" | grep -q "$VERSION"; then
-            echo "Tag $VERSION already exists on origin; would not create"
+            if [[ "${{ inputs.force_retag }}" == "true" ]]; then
+              echo "Tag $VERSION exists on origin; would retag to HEAD ($HEADSHA) and force-push"
+            else
+              echo "Tag $VERSION already exists on origin; would not create"
+            fi
           else
-            echo "Would create and push tag $VERSION at current HEAD"
+            if [[ -n "$LOCAL_TAG_SHA" ]]; then
+              if [[ "$LOCAL_TAG_SHA" == "$HEADSHA" ]]; then
+                echo "Local tag $VERSION points to HEAD; would push tag"
+              else
+                echo "Local tag $VERSION at $LOCAL_TAG_SHA (not HEAD); would skip push. Re-run with force_retag=true to move it."
+              fi
+            else
+              echo "Would create and push tag $VERSION at current HEAD ($HEADSHA)"
+            fi
           fi
 
       - name: Ensure tag exists on current HEAD
         if: ${{ !inputs.dry_run }}
         run: |
-          set -e
+          set -euo pipefail
           VERSION=${{ steps.latest.outputs.latest }}
           HEADSHA=$(git rev-parse HEAD)
-          if git ls-remote --tags origin "$VERSION^{}" | grep -q "$VERSION"; then
+          LOCAL_TAG_SHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}" || true)
+          REMOTE_HAS_TAG=$(git ls-remote --tags origin "$VERSION^{}" | grep -q "$VERSION" && echo yes || echo no)
+
+          if [[ "$REMOTE_HAS_TAG" == "yes" ]]; then
             if [[ "${{ inputs.force_retag }}" == "true" ]]; then
               echo "Force retagging $VERSION to $HEADSHA"
-              git tag -f "$VERSION"
+              git tag -f "$VERSION" "$HEADSHA"
             else
               echo "Tag $VERSION exists on origin; leaving as-is"
             fi
           else
-            echo "Creating tag $VERSION at $HEADSHA"
-            git tag "$VERSION"
+            if [[ -n "$LOCAL_TAG_SHA" ]]; then
+              if [[ "$LOCAL_TAG_SHA" == "$HEADSHA" ]]; then
+                echo "Local tag $VERSION already at HEAD"
+              else
+                if [[ "${{ inputs.force_retag }}" == "true" ]]; then
+                  echo "Retagging local $VERSION from $LOCAL_TAG_SHA to $HEADSHA"
+                  git tag -f "$VERSION" "$HEADSHA"
+                else
+                  echo "Local $VERSION at $LOCAL_TAG_SHA (not HEAD). Skipping retag; re-run with force_retag=true to move it."
+                fi
+              fi
+            else
+              echo "Creating tag $VERSION at $HEADSHA"
+              git tag "$VERSION" "$HEADSHA"
+            fi
           fi
 
       - name: Plan push (dry-run)
@@ -146,24 +176,35 @@ jobs:
       - name: Push branch and/or tag
         if: ${{ !inputs.dry_run }}
         run: |
-          set -e
+          set -euo pipefail
           CHANGED=$(test "${{ steps.head.outputs.sha }}" != "$(git rev-parse HEAD)" && echo yes || echo no)
           if [[ "$CHANGED" == "yes" ]]; then
             git push origin python
           else
             echo "Branch unchanged; not pushing python"
           fi
+
           VERSION=${{ steps.latest.outputs.latest }}
-          if git show-ref --tags --verify --quiet "refs/tags/$VERSION"; then
-            if git ls-remote --tags origin "$VERSION^{}" | grep -q "$VERSION"; then
-              if [[ "${{ inputs.force_retag }}" == "true" ]]; then
-                echo "Pushing forced tag $VERSION"
-                git push -f origin "$VERSION"
-              else
-                echo "Remote already has $VERSION; skipping tag push"
-              fi
+          HEADSHA=$(git rev-parse HEAD)
+          LOCAL_TAG_SHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}" || true)
+
+          if [[ -z "$LOCAL_TAG_SHA" ]]; then
+            echo "No local tag $VERSION; skipping tag push"
+            exit 0
+          fi
+
+          if git ls-remote --tags origin "$VERSION^{}" | grep -q "$VERSION"; then
+            if [[ "${{ inputs.force_retag }}" == "true" ]]; then
+              echo "Pushing forced tag $VERSION"
+              git push -f origin "$VERSION"
             else
+              echo "Remote already has $VERSION; skipping tag push"
+            fi
+          else
+            if [[ "$LOCAL_TAG_SHA" == "$HEADSHA" ]]; then
               echo "Pushing new tag $VERSION"
               git push origin "$VERSION"
+            else
+              echo "Local tag $VERSION is not at HEAD ($LOCAL_TAG_SHA vs $HEADSHA); skipping push. Re-run with force_retag=true to move."
             fi
           fi
