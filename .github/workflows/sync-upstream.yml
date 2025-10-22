@@ -4,6 +4,15 @@ on:
   # schedule:
   #   - cron: "0 7 * * *"
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Perform a no-op dry run
+        type: boolean
+        default: false
+      force_retag:
+        description: Force re-tag if tag exists on remote
+        type: boolean
+        default: false
 
 concurrency:
   group: sync-upstream
@@ -26,15 +35,34 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
-      - name: Add upstream remote and fetch
+      - name: Add remotes and fetch
         run: |
           git remote add upstream https://github.com/parcel-bundler/lightningcss || true
-          git fetch upstream --tags
+          git fetch upstream --tags --prune
+          git fetch origin --tags --prune
 
-      - name: Merge upstream/master into python (preserve packaging files)
+      - name: Record initial HEAD
+        id: head
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Compute ahead/behind vs upstream/master
+        id: ab
+        run: |
+          BASE=$(git merge-base HEAD upstream/master)
+          BEHIND=$(git rev-list --left-only --count HEAD...upstream/master)
+          AHEAD=$(git rev-list --right-only --count HEAD...upstream/master)
+          echo "base=$BASE"   >> "$GITHUB_OUTPUT"
+          echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
+          echo "ahead=$AHEAD"   >> "$GITHUB_OUTPUT"
+
+      - name: Plan merge (dry-run)
+        if: ${{ inputs.dry_run && steps.ab.outputs.behind != '0' }}
+        run: echo "Would merge upstream/master into python (behind=${{ steps.ab.outputs.behind }})"
+
+      - name: Merge upstream/master into python
+        if: ${{ !inputs.dry_run && steps.ab.outputs.behind != '0' }}
         run: |
           set -e
-          # Try a regular merge preferring our branch for conflicts
           if ! git merge upstream/master -X ours --no-edit; then
             echo "Merge failed, attempting rebase with theirs"
             git merge --abort || true
@@ -43,20 +71,39 @@ jobs:
 
       - uses: extractions/setup-just@v2
 
-      - name: Update pyproject version from package.json (no push yet)
+      - name: Check if version update needed
+        id: ver
+        run: |
+          NEED=$(python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+          pkg = json.loads(Path('package.json').read_text())
+          version = pkg['version']
+          pp = Path('pyproject.toml')
+          content = pp.read_text()
+          m = re.search(r'version\s*=\s*"([^"]*)"', content)
+          current = m.group(1) if m else ''
+          print('change' if current != version else 'nochange')
+PY
+          )
+          echo "needed=$NEED" >> "$GITHUB_OUTPUT"
+
+      - name: Plan version update (dry-run)
+        if: ${{ inputs.dry_run && steps.ver.outputs.needed == 'change' }}
+        run: echo "Would update pyproject.toml version via 'just update-metadata'"
+
+      - name: Update pyproject from package.json
+        if: ${{ !inputs.dry_run && steps.ver.outputs.needed == 'change' }}
         run: |
           just update-metadata
           if [[ -n $(git status --porcelain) ]]; then
             git add pyproject.toml
-            git commit -m "🧹 sync version from package.json to pyproject.toml for release"
-          else
-            echo "No pyproject changes needed"
+            git commit -m "sync version from package.json to pyproject.toml"
           fi
 
       - name: Determine latest upstream version tag
         id: latest
         run: |
-          # Get latest semver-looking tag from upstream (vX.Y.Z)
           LATEST_TAG=$(git tag -l --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
           if [[ -z "$LATEST_TAG" ]]; then
             echo "No tags found" >&2
@@ -64,23 +111,70 @@ jobs:
           fi
           echo "latest=$LATEST_TAG" >> $GITHUB_OUTPUT
 
-      - name: Ensure tag exists on python branch commit
+      - name: Plan tag action (dry-run)
+        if: ${{ inputs.dry_run }}
         run: |
           VERSION=${{ steps.latest.outputs.latest }}
-          echo "Latest tag is $VERSION"
-          # If tag already exists on origin, skip creating it
-          if git ls-remote --tags origin "$VERSION" | grep -q "$VERSION"; then
-            echo "Tag $VERSION already exists on origin; not creating"
+          if git ls-remote --tags origin "$VERSION^{}" | grep -q "$VERSION"; then
+            echo "Tag $VERSION already exists on origin; would not create"
           else
-            # Create tag at current HEAD of python (includes packaging + version sync)
+            echo "Would create and push tag $VERSION at current HEAD"
+          fi
+
+      - name: Ensure tag exists on current HEAD
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -e
+          VERSION=${{ steps.latest.outputs.latest }}
+          HEADSHA=$(git rev-parse HEAD)
+          if git ls-remote --tags origin "$VERSION^{}" | grep -q "$VERSION"; then
+            if [[ "${{ inputs.force_retag }}" == "true" ]]; then
+              echo "Force retagging $VERSION to $HEADSHA"
+              git tag -f "$VERSION"
+            else
+              echo "Tag $VERSION exists on origin; leaving as-is"
+            fi
+          else
+            echo "Creating tag $VERSION at $HEADSHA"
             git tag "$VERSION"
           fi
 
-      - name: Push python branch and new tag (if any)
+      - name: Plan push (dry-run)
+        if: ${{ inputs.dry_run }}
         run: |
-          git push origin python
-          # Push only the tag if it exists locally and not on origin
+          if [[ "${{ steps.head.outputs.sha }}" != "$(git rev-parse HEAD)" ]]; then
+            echo "Would push branch python"
+          else
+            echo "No branch changes to push"
+          fi
           VERSION=${{ steps.latest.outputs.latest }}
-          if git show-ref --tags --verify --quiet "refs/tags/$VERSION" && ! git ls-remote --tags origin "$VERSION" | grep -q "$VERSION"; then
-            git push origin "$VERSION"
+          if ! git ls-remote --tags origin "$VERSION^{}" | grep -q "$VERSION"; then
+            echo "Would push tag $VERSION"
+          else
+            echo "No tag push needed"
+          fi
+
+      - name: Push branch and/or tag
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -e
+          CHANGED=$(test "${{ steps.head.outputs.sha }}" != "$(git rev-parse HEAD)" && echo yes || echo no)
+          if [[ "$CHANGED" == "yes" ]]; then
+            git push origin python
+          else
+            echo "Branch unchanged; not pushing python"
+          fi
+          VERSION=${{ steps.latest.outputs.latest }}
+          if git show-ref --tags --verify --quiet "refs/tags/$VERSION"; then
+            if git ls-remote --tags origin "$VERSION^{}" | grep -q "$VERSION"; then
+              if [[ "${{ inputs.force_retag }}" == "true" ]]; then
+                echo "Pushing forced tag $VERSION"
+                git push -f origin "$VERSION"
+              else
+                echo "Remote already has $VERSION; skipping tag push"
+              fi
+            else
+              echo "Pushing new tag $VERSION"
+              git push origin "$VERSION"
+            fi
           fi
