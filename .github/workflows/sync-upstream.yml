@@ -167,6 +167,17 @@ jobs:
             echo "No tag push needed"
           fi
 
+          # Plan: mirror origin/master to upstream/master
+          UP=$(git rev-parse upstream/master)
+          CUR=$(git ls-remote --heads origin master | awk '{print $1}')
+          if [[ -z "$CUR" ]]; then
+            echo "Would create origin/master at $UP"
+          elif [[ "$CUR" != "$UP" ]]; then
+            echo "Would force-update origin/master ($CUR -> $UP)"
+          else
+            echo "Master already mirrors upstream/master"
+          fi
+
       - name: Push branch and/or tag
         if: ${{ !inputs.dry_run }}
         run: |
@@ -195,4 +206,17 @@ jobs:
             git push -f origin "$VERSION"
           else
             echo "Tag $VERSION already up to date on remote"
+          fi
+
+          # Mirror origin/master to upstream/master
+          UP=$(git rev-parse upstream/master)
+          CUR=$(git ls-remote --heads origin master | awk '{print $1}')
+          if [[ -z "$CUR" ]]; then
+            echo "Creating origin/master at $UP"
+            git push origin upstream/master:master
+          elif [[ "$CUR" != "$UP" ]]; then
+            echo "Force-updating origin/master to upstream/master ($CUR -> $UP)"
+            git push --force-with-lease origin upstream/master:master
+          else
+            echo "Master already mirrors upstream/master"
           fi
