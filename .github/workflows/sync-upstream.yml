@@ -23,7 +23,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,9 +52,9 @@ jobs:
           BASE=$(git merge-base HEAD upstream/master)
           BEHIND=$(git rev-list --left-only --count HEAD...upstream/master)
           AHEAD=$(git rev-list --right-only --count HEAD...upstream/master)
-          echo "base=$BASE"   >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
           echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
-          echo "ahead=$AHEAD"   >> "$GITHUB_OUTPUT"
+          echo "ahead=$AHEAD" >> "$GITHUB_OUTPUT"
 
       - name: Plan merge (dry-run)
         if: ${{ inputs.dry_run && steps.ab.outputs.behind != '0' }}
@@ -85,7 +84,7 @@ jobs:
         if: ${{ !inputs.dry_run && steps.ver.outputs.needed == 'change' }}
         run: |
           just update-metadata
-          if [[ -n $(git status --porcelain) ]]; then
+          if [[ -n "$(git status --porcelain)" ]]; then
             git add pyproject.toml
             git commit -m "sync version from package.json to pyproject.toml"
           fi
