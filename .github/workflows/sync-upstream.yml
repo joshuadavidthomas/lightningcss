@@ -19,14 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: python
-
-      - uses: extractions/setup-just@v2
 
       - name: Configure git
         run: |
@@ -63,89 +60,6 @@ jobs:
             git rebase upstream/master -X theirs
           fi
 
-      - name: Check if version update needed
-        id: ver
-        run: |
-          NEED=$(just needs-version-update)
-          echo "needed=$NEED" >> "$GITHUB_OUTPUT"
-
-      - name: Update pyproject from package.json
-        if: ${{ steps.ver.outputs.needed == 'change' }}
-        run: |
-          just update-metadata
-          if [[ -n $(git status --porcelain) ]]; then
-            git add pyproject.toml
-            git commit -m "sync version from package.json to pyproject.toml"
-          fi
-
-      - name: Determine latest upstream version tag
-        id: latest
-        run: |
-          LATEST_TAG=$(git tag -l --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
-          if [[ -z "$LATEST_TAG" ]]; then
-            echo "No tags found" >&2
-            exit 1
-          fi
-          echo "latest=$LATEST_TAG" >> $GITHUB_OUTPUT
-
-      - name: Resolve tag commit sha
-        id: tagsha
-        run: |
-          VERSION=${{ steps.latest.outputs.latest }}
-          SHA=$(git ls-remote --tags upstream "$VERSION^{}" | awk '{print $1}')
-          if [[ -z "$SHA" ]]; then
-            # Fallback to local tag if remote resolution fails
-            SHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}" || true)
-          fi
-          if [[ -z "$SHA" ]]; then
-            echo "Could not resolve tag $VERSION to a commit" >&2
-            exit 1
-          fi
-          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout upstream tag (detached)
-        run: |
-          git checkout -q --detach "${{ steps.tagsha.outputs.sha }}"
-
-      - name: Copy packaging files from origin/python
-        run: |
-          set -euo pipefail
-          for f in pyproject.toml README-PYPI.md; do
-            if git ls-tree -r --name-only origin/python | grep -qx "$f"; then
-              git checkout origin/python -- "$f"
-            else
-              echo "Warning: $f not found on origin/python; skipping copy"
-            fi
-          done
-
-      - name: Prepare packaging commit at tag
-        run: |
-          set -euo pipefail
-          VERSION=${{ steps.latest.outputs.latest }}
-          just update-metadata
-          if [[ -n $(git status --porcelain) ]]; then
-            git add pyproject.toml README-PYPI.md || true
-            git commit -m "Python packaging for $VERSION"
-          else
-            echo "No packaging changes to commit at $VERSION"
-          fi
-
-      - name: Ensure tag points to packaging commit (tag-on-tag)
-        run: |
-          set -euo pipefail
-          VERSION=${{ steps.latest.outputs.latest }}
-          PACKAGING_SHA=$(git rev-parse HEAD)
-          LOCAL_TAG_SHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}" || true)
-          if [[ -n "$LOCAL_TAG_SHA" && "$LOCAL_TAG_SHA" == "$PACKAGING_SHA" ]]; then
-            echo "Local tag $VERSION already points to packaging commit"
-          elif [[ -n "$LOCAL_TAG_SHA" ]]; then
-            echo "Updating local tag $VERSION to packaging commit $PACKAGING_SHA"
-            git tag -f "$VERSION" "$PACKAGING_SHA"
-          else
-            echo "Creating local tag $VERSION at packaging commit $PACKAGING_SHA"
-            git tag "$VERSION" "$PACKAGING_SHA"
-          fi
-
       - name: Plan push (dry-run)
         if: ${{ inputs.dry_run }}
         run: |
@@ -156,18 +70,7 @@ jobs:
           else
             echo "No branch changes to push"
           fi
-          VERSION=${{ steps.latest.outputs.latest }}
-          LOCAL_TAG_SHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}" || true)
-          REMOTE_TAG_SHA=$(git ls-remote --tags origin "$VERSION^{}" | awk '{print $1}')
-          if [[ -z "$REMOTE_TAG_SHA" ]]; then
-            echo "Would push new tag $VERSION ($LOCAL_TAG_SHA)"
-          elif [[ "$REMOTE_TAG_SHA" != "$LOCAL_TAG_SHA" ]]; then
-            echo "Would force-push tag $VERSION from $REMOTE_TAG_SHA to $LOCAL_TAG_SHA"
-          else
-            echo "No tag push needed"
-          fi
 
-          # Plan: mirror origin/master to upstream/master
           UP=$(git rev-parse upstream/master)
           CUR=$(git ls-remote --heads origin master | awk '{print $1}')
           if [[ -z "$CUR" ]]; then
@@ -178,10 +81,23 @@ jobs:
             echo "Master already mirrors upstream/master"
           fi
 
-      - name: Push branch and/or tag
+          mapfile -t UP_TAGS < <(git ls-remote --tags upstream | awk '{print $2}' | sed 's@refs/tags/@@' | sed 's/\^{}$//' | sort -u)
+          mapfile -t OR_TAGS < <(git ls-remote --tags origin | awk '{print $2}' | sed 's@refs/tags/@@' | sed 's/\^{}$//' | sort -u)
+          MISSING_LIST=$(comm -23 <(printf "%s\n" "${UP_TAGS[@]}") <(printf "%s\n" "${OR_TAGS[@]}") || true)
+          MISSING_COUNT=$(printf "%s\n" "$MISSING_LIST" | sed '/^$/d' | wc -l | tr -d ' ')
+          if [[ "$MISSING_COUNT" != "0" ]]; then
+            echo "Would push $MISSING_COUNT missing tag(s) from upstream to origin"
+            echo "$MISSING_LIST" | head -n 20 | sed 's/^/  - /'
+            if (( MISSING_COUNT > 20 )); then echo "  ... (truncated)"; fi
+          else
+            echo "No upstream tags missing on origin"
+          fi
+
+      - name: Push branch, mirror master, and sync tags
         if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
+
           # Push branch only if python has new commits
           BRANCH_TIP=$(git rev-parse python)
           if [[ "${{ steps.head.outputs.sha }}" != "$BRANCH_TIP" ]]; then
@@ -189,23 +105,6 @@ jobs:
             git push origin python
           else
             echo "Branch unchanged; not pushing python"
-          fi
-
-          VERSION=${{ steps.latest.outputs.latest }}
-          LOCAL_TAG_SHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}" || true)
-          if [[ -z "$LOCAL_TAG_SHA" ]]; then
-            echo "No local tag $VERSION; skipping tag push"
-            exit 0
-          fi
-          REMOTE_TAG_SHA=$(git ls-remote --tags origin "$VERSION^{}" | awk '{print $1}')
-          if [[ -z "$REMOTE_TAG_SHA" ]]; then
-            echo "Pushing new tag $VERSION"
-            git push origin "$VERSION"
-          elif [[ "$REMOTE_TAG_SHA" != "$LOCAL_TAG_SHA" ]]; then
-            echo "Force-pushing updated tag $VERSION ($REMOTE_TAG_SHA -> $LOCAL_TAG_SHA)"
-            git push -f origin "$VERSION"
-          else
-            echo "Tag $VERSION already up to date on remote"
           fi
 
           # Mirror origin/master to upstream/master
@@ -219,4 +118,19 @@ jobs:
             git push --force-with-lease origin upstream/master:master
           else
             echo "Master already mirrors upstream/master"
+          fi
+
+          # Sync missing tags (push only tags that exist on upstream but not on origin)
+          mapfile -t UP_TAGS < <(git ls-remote --tags upstream | awk '{print $2}' | sed 's@refs/tags/@@' | sed 's/\^{}$//' | sort -u)
+          mapfile -t OR_TAGS < <(git ls-remote --tags origin | awk '{print $2}' | sed 's@refs/tags/@@' | sed 's/\^{}$//' | sort -u)
+          MISSING_LIST=$(comm -23 <(printf "%s\n" "${UP_TAGS[@]}") <(printf "%s\n" "${OR_TAGS[@]}") || true)
+          if [[ -n "$MISSING_LIST" ]]; then
+            echo "$MISSING_LIST" | while read -r TAG; do
+              if [[ -n "$TAG" ]]; then
+                echo "Pushing missing tag $TAG"
+                git push origin "refs/tags/$TAG:refs/tags/$TAG"
+              fi
+            done
+          else
+            echo "No upstream tags missing on origin"
           fi
