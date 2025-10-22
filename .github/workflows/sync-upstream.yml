@@ -9,10 +9,6 @@ on:
         description: Perform a no-op dry run
         type: boolean
         default: false
-      force_retag:
-        description: Force re-tag if tag exists on remote
-        type: boolean
-        default: false
 
 concurrency:
   group: sync-upstream
@@ -92,50 +88,81 @@ jobs:
           fi
           echo "latest=$LATEST_TAG" >> $GITHUB_OUTPUT
 
-      - name: Ensure tag exists on current HEAD
+      - name: Resolve tag commit sha
+        id: tagsha
+        run: |
+          VERSION=${{ steps.latest.outputs.latest }}
+          SHA=$(git ls-remote --tags upstream "$VERSION^{}" | awk '{print $1}')
+          if [[ -z "$SHA" ]]; then
+            # Fallback to local tag if remote resolution fails
+            SHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}" || true)
+          fi
+          if [[ -z "$SHA" ]]; then
+            echo "Could not resolve tag $VERSION to a commit" >&2
+            exit 1
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout upstream tag (detached)
+        run: |
+          git checkout -q --detach "${{ steps.tagsha.outputs.sha }}"
+
+      - name: Copy packaging files from origin/python
+        run: |
+          set -euo pipefail
+          for f in pyproject.toml README-PYPI.md; do
+            if git ls-tree -r --name-only origin/python | grep -qx "$f"; then
+              git checkout origin/python -- "$f"
+            else
+              echo "Warning: $f not found on origin/python; skipping copy"
+            fi
+          done
+
+      - name: Prepare packaging commit at tag
         run: |
           set -euo pipefail
           VERSION=${{ steps.latest.outputs.latest }}
-          HEADSHA=$(git rev-parse HEAD)
-          LOCAL_TAG_SHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}" || true)
-          REMOTE_HAS_TAG=$(git ls-remote --tags origin "$VERSION^{}" | grep -q "$VERSION" && echo yes || echo no)
-
-          if [[ "$REMOTE_HAS_TAG" == "yes" ]]; then
-            if [[ "${{ inputs.force_retag }}" == "true" ]]; then
-              echo "Force retagging $VERSION to $HEADSHA"
-              git tag -f "$VERSION" "$HEADSHA"
-            else
-              echo "Tag $VERSION exists on origin; leaving as-is"
-            fi
+          just update-metadata
+          if [[ -n $(git status --porcelain) ]]; then
+            git add pyproject.toml README-PYPI.md || true
+            git commit -m "Python packaging for $VERSION"
           else
-            if [[ -n "$LOCAL_TAG_SHA" ]]; then
-              if [[ "$LOCAL_TAG_SHA" == "$HEADSHA" ]]; then
-                echo "Local tag $VERSION already at HEAD"
-              else
-                if [[ "${{ inputs.force_retag }}" == "true" ]]; then
-                  echo "Retagging local $VERSION from $LOCAL_TAG_SHA to $HEADSHA"
-                  git tag -f "$VERSION" "$HEADSHA"
-                else
-                  echo "Local $VERSION at $LOCAL_TAG_SHA (not HEAD). Skipping retag; re-run with force_retag=true to move it."
-                fi
-              fi
-            else
-              echo "Creating tag $VERSION at $HEADSHA"
-              git tag "$VERSION" "$HEADSHA"
-            fi
+            echo "No packaging changes to commit at $VERSION"
+          fi
+
+      - name: Ensure tag points to packaging commit (tag-on-tag)
+        run: |
+          set -euo pipefail
+          VERSION=${{ steps.latest.outputs.latest }}
+          PACKAGING_SHA=$(git rev-parse HEAD)
+          LOCAL_TAG_SHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}" || true)
+          if [[ -n "$LOCAL_TAG_SHA" && "$LOCAL_TAG_SHA" == "$PACKAGING_SHA" ]]; then
+            echo "Local tag $VERSION already points to packaging commit"
+          elif [[ -n "$LOCAL_TAG_SHA" ]]; then
+            echo "Updating local tag $VERSION to packaging commit $PACKAGING_SHA"
+            git tag -f "$VERSION" "$PACKAGING_SHA"
+          else
+            echo "Creating local tag $VERSION at packaging commit $PACKAGING_SHA"
+            git tag "$VERSION" "$PACKAGING_SHA"
           fi
 
       - name: Plan push (dry-run)
         if: ${{ inputs.dry_run }}
         run: |
-          if [[ "${{ steps.head.outputs.sha }}" != "$(git rev-parse HEAD)" ]]; then
+          set -euo pipefail
+          BRANCH_TIP=$(git rev-parse python)
+          if [[ "${{ steps.head.outputs.sha }}" != "$BRANCH_TIP" ]]; then
             echo "Would push branch python"
           else
             echo "No branch changes to push"
           fi
           VERSION=${{ steps.latest.outputs.latest }}
-          if ! git ls-remote --tags origin "$VERSION^{}" | grep -q "$VERSION"; then
-            echo "Would push tag $VERSION"
+          LOCAL_TAG_SHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}" || true)
+          REMOTE_TAG_SHA=$(git ls-remote --tags origin "$VERSION^{}" | awk '{print $1}')
+          if [[ -z "$REMOTE_TAG_SHA" ]]; then
+            echo "Would push new tag $VERSION ($LOCAL_TAG_SHA)"
+          elif [[ "$REMOTE_TAG_SHA" != "$LOCAL_TAG_SHA" ]]; then
+            echo "Would force-push tag $VERSION from $REMOTE_TAG_SHA to $LOCAL_TAG_SHA"
           else
             echo "No tag push needed"
           fi
@@ -144,34 +171,28 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
-          CHANGED=$(test "${{ steps.head.outputs.sha }}" != "$(git rev-parse HEAD)" && echo yes || echo no)
-          if [[ "$CHANGED" == "yes" ]]; then
+          # Push branch only if python has new commits
+          BRANCH_TIP=$(git rev-parse python)
+          if [[ "${{ steps.head.outputs.sha }}" != "$BRANCH_TIP" ]]; then
+            echo "Pushing branch python"
             git push origin python
           else
             echo "Branch unchanged; not pushing python"
           fi
 
           VERSION=${{ steps.latest.outputs.latest }}
-          HEADSHA=$(git rev-parse HEAD)
           LOCAL_TAG_SHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}" || true)
-
           if [[ -z "$LOCAL_TAG_SHA" ]]; then
             echo "No local tag $VERSION; skipping tag push"
             exit 0
           fi
-
-          if git ls-remote --tags origin "$VERSION^{}" | grep -q "$VERSION"; then
-            if [[ "${{ inputs.force_retag }}" == "true" ]]; then
-              echo "Pushing forced tag $VERSION"
-              git push -f origin "$VERSION"
-            else
-              echo "Remote already has $VERSION; skipping tag push"
-            fi
+          REMOTE_TAG_SHA=$(git ls-remote --tags origin "$VERSION^{}" | awk '{print $1}')
+          if [[ -z "$REMOTE_TAG_SHA" ]]; then
+            echo "Pushing new tag $VERSION"
+            git push origin "$VERSION"
+          elif [[ "$REMOTE_TAG_SHA" != "$LOCAL_TAG_SHA" ]]; then
+            echo "Force-pushing updated tag $VERSION ($REMOTE_TAG_SHA -> $LOCAL_TAG_SHA)"
+            git push -f origin "$VERSION"
           else
-            if [[ "$LOCAL_TAG_SHA" == "$HEADSHA" ]]; then
-              echo "Pushing new tag $VERSION"
-              git push origin "$VERSION"
-            else
-              echo "Local tag $VERSION is not at HEAD ($LOCAL_TAG_SHA vs $HEADSHA); skipping push. Re-run with force_retag=true to move."
-            fi
+            echo "Tag $VERSION already up to date on remote"
           fi
