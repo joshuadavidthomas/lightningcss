@@ -30,6 +30,8 @@ jobs:
           fetch-depth: 0
           ref: python
 
+      - uses: extractions/setup-just@v2
+
       - name: Configure git
         run: |
           git config user.name "GitHub Actions"
@@ -69,23 +71,10 @@ jobs:
             git rebase upstream/master -X theirs
           fi
 
-      - uses: extractions/setup-just@v2
-
       - name: Check if version update needed
         id: ver
         run: |
-          NEED=$(python3 - <<'PY'
-          import json, re
-          from pathlib import Path
-          pkg = json.loads(Path('package.json').read_text())
-          version = pkg['version']
-          pp = Path('pyproject.toml')
-          content = pp.read_text()
-          m = re.search(r'version\s*=\s*"([^"]*)"', content)
-          current = m.group(1) if m else ''
-          print('change' if current != version else 'nochange')
-PY
-          )
+          NEED=$(just needs-version-update)
           echo "needed=$NEED" >> "$GITHUB_OUTPUT"
 
       - name: Plan version update (dry-run)
