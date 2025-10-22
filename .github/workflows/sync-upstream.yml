@@ -57,12 +57,8 @@ jobs:
           echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
           echo "ahead=$AHEAD"   >> "$GITHUB_OUTPUT"
 
-      - name: Plan merge (dry-run)
-        if: ${{ inputs.dry_run && steps.ab.outputs.behind != '0' }}
-        run: echo "Would merge upstream/master into python (behind=${{ steps.ab.outputs.behind }})"
-
       - name: Merge upstream/master into python
-        if: ${{ !inputs.dry_run && steps.ab.outputs.behind != '0' }}
+        if: ${{ steps.ab.outputs.behind != '0' }}
         run: |
           set -e
           if ! git merge upstream/master -X ours --no-edit; then
@@ -77,12 +73,8 @@ jobs:
           NEED=$(just needs-version-update)
           echo "needed=$NEED" >> "$GITHUB_OUTPUT"
 
-      - name: Plan version update (dry-run)
-        if: ${{ inputs.dry_run && steps.ver.outputs.needed == 'change' }}
-        run: echo "Would update pyproject.toml version via 'just update-metadata'"
-
       - name: Update pyproject from package.json
-        if: ${{ !inputs.dry_run && steps.ver.outputs.needed == 'change' }}
+        if: ${{ steps.ver.outputs.needed == 'change' }}
         run: |
           just update-metadata
           if [[ -n $(git status --porcelain) ]]; then
@@ -100,32 +92,7 @@ jobs:
           fi
           echo "latest=$LATEST_TAG" >> $GITHUB_OUTPUT
 
-      - name: Plan tag action (dry-run)
-        if: ${{ inputs.dry_run }}
-        run: |
-          VERSION=${{ steps.latest.outputs.latest }}
-          HEADSHA=$(git rev-parse HEAD)
-          LOCAL_TAG_SHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}" || true)
-          if git ls-remote --tags origin "$VERSION^{}" | grep -q "$VERSION"; then
-            if [[ "${{ inputs.force_retag }}" == "true" ]]; then
-              echo "Tag $VERSION exists on origin; would retag to HEAD ($HEADSHA) and force-push"
-            else
-              echo "Tag $VERSION already exists on origin; would not create"
-            fi
-          else
-            if [[ -n "$LOCAL_TAG_SHA" ]]; then
-              if [[ "$LOCAL_TAG_SHA" == "$HEADSHA" ]]; then
-                echo "Local tag $VERSION points to HEAD; would push tag"
-              else
-                echo "Local tag $VERSION at $LOCAL_TAG_SHA (not HEAD); would skip push. Re-run with force_retag=true to move it."
-              fi
-            else
-              echo "Would create and push tag $VERSION at current HEAD ($HEADSHA)"
-            fi
-          fi
-
       - name: Ensure tag exists on current HEAD
-        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           VERSION=${{ steps.latest.outputs.latest }}
