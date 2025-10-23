@@ -8,7 +8,7 @@ use super::MinifyContext;
 use crate::context::DeclarationContext;
 use crate::declaration::DeclarationBlock;
 use crate::error::ParserError;
-use crate::error::{MinifyError, PrinterError, PrinterErrorKind};
+use crate::error::{MinifyError, PrinterError};
 use crate::parser::DefaultAtRule;
 use crate::printer::Printer;
 use crate::rules::CssRuleList;
@@ -173,8 +173,8 @@ impl<'i, T> StyleRule<'i, T> {
 
   pub(crate) fn update_prefix(&mut self, context: &mut MinifyContext<'_, 'i>) {
     self.vendor_prefix = get_prefix(&self.selectors);
-    if self.vendor_prefix.contains(VendorPrefix::None) && context.targets.should_compile_selectors() {
-      self.vendor_prefix = downlevel_selectors(self.selectors.0.as_mut_slice(), *context.targets);
+    if self.vendor_prefix.contains(VendorPrefix::None) && context.targets.current.should_compile_selectors() {
+      self.vendor_prefix = downlevel_selectors(self.selectors.0.as_mut_slice(), context.targets.current);
     }
   }
 }
@@ -245,7 +245,7 @@ impl<'a, 'i, T: ToCss> StyleRule<'i, T> {
     W: std::fmt::Write,
   {
     // If supported, or there are no targets, preserve nesting. Otherwise, write nested rules after parent.
-    let supports_nesting = self.rules.0.is_empty() || !should_compile!(dest.targets, Nesting);
+    let supports_nesting = self.rules.0.is_empty() || !should_compile!(dest.targets.current, Nesting);
     let len = self.declarations.declarations.len() + self.declarations.important_declarations.len();
     let has_declarations = supports_nesting || len > 0 || self.rules.0.is_empty();
 
@@ -256,39 +256,16 @@ impl<'a, 'i, T: ToCss> StyleRule<'i, T> {
       dest.whitespace()?;
       dest.write_char('{')?;
       dest.indent();
-
-      let mut i = 0;
-      macro_rules! write {
-        ($decls: ident, $important: literal) => {
-          for decl in &self.declarations.$decls {
-            // The CSS modules `composes` property is handled specially, and omitted during printing.
-            // We need to add the classes it references to the list for the selectors in this rule.
-            if let crate::properties::Property::Composes(composes) = &decl {
-              if dest.is_nested() && dest.css_module.is_some() {
-                return Err(dest.error(PrinterErrorKind::InvalidComposesNesting, composes.loc));
-              }
-
-              if let Some(css_module) = &mut dest.css_module {
-                css_module
-                  .handle_composes(&self.selectors, &composes, self.loc.source_index)
-                  .map_err(|e| dest.error(e, composes.loc))?;
-                continue;
-              }
-            }
-
-            dest.newline()?;
-            decl.to_css(dest, $important)?;
-            if i != len - 1 || !dest.minify || (supports_nesting && !self.rules.0.is_empty()) {
-              dest.write_char(';')?;
-            }
-
-            i += 1;
-          }
-        };
+      if len > 0 {
+        dest.newline()?;
       }
 
-      write!(declarations, false);
-      write!(important_declarations, true);
+      self.declarations.to_css_declarations(
+        dest,
+        supports_nesting && !self.rules.0.is_empty(),
+        &self.selectors,
+        self.loc.source_index,
+      )?;
     }
 
     macro_rules! newline {

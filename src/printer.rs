@@ -5,7 +5,7 @@ use crate::dependencies::{Dependency, DependencyOptions};
 use crate::error::{Error, ErrorLocation, PrinterError, PrinterErrorKind};
 use crate::rules::{Location, StyleContext};
 use crate::selector::SelectorList;
-use crate::targets::Targets;
+use crate::targets::{Targets, TargetsWithSupportsScope};
 use crate::vendor_prefix::VendorPrefix;
 use cssparser::{serialize_identifier, serialize_name};
 #[cfg(feature = "sourcemap")]
@@ -77,7 +77,7 @@ pub struct Printer<'a, 'b, 'c, W> {
   line: u32,
   col: u32,
   pub(crate) minify: bool,
-  pub(crate) targets: Targets,
+  pub(crate) targets: TargetsWithSupportsScope,
   /// Vendor prefix override. When non-empty, it overrides
   /// the vendor prefix of whatever is being printed.
   pub(crate) vendor_prefix: VendorPrefix,
@@ -108,7 +108,7 @@ impl<'a, 'b, 'c, W: std::fmt::Write + Sized> Printer<'a, 'b, 'c, W> {
       line: 0,
       col: 0,
       minify: options.minify,
-      targets: options.targets,
+      targets: TargetsWithSupportsScope::new(options.targets),
       vendor_prefix: VendorPrefix::empty(),
       in_calc: false,
       css_module: None,
@@ -142,6 +142,25 @@ impl<'a, 'b, 'c, W: std::fmt::Write + Sized> Printer<'a, 'b, 'c, W> {
   /// If such a string is written, it will break source maps.
   pub fn write_str(&mut self, s: &str) -> Result<(), PrinterError> {
     self.col += s.len() as u32;
+    self.dest.write_str(s)?;
+    Ok(())
+  }
+
+  /// Writes a raw string which may contain newlines to the underlying destination.
+  pub fn write_str_with_newlines(&mut self, s: &str) -> Result<(), PrinterError> {
+    let mut last_line_start: usize = 0;
+
+    for (idx, n) in s.char_indices() {
+      if n == '\n' {
+        self.line += 1;
+        self.col = 0;
+
+        // Keep track of where the *next* line starts
+        last_line_start = idx + 1;
+      }
+    }
+
+    self.col += (s.len() - last_line_start) as u32;
     self.dest.write_str(s)?;
     Ok(())
   }
@@ -371,6 +390,19 @@ impl<'a, 'b, 'c, W: std::fmt::Write + Sized> Printer<'a, 'b, 'c, W> {
     f: F,
   ) -> Result<T, U> {
     let parent = std::mem::take(&mut self.context);
+    let res = f(self);
+    self.context = parent;
+    res
+  }
+
+  pub(crate) fn with_parent_context<T, U, F: FnOnce(&mut Printer<'a, 'b, 'c, W>) -> Result<T, U>>(
+    &mut self,
+    f: F,
+  ) -> Result<T, U> {
+    let parent = std::mem::take(&mut self.context);
+    if let Some(parent) = parent {
+      self.context = parent.parent;
+    }
     let res = f(self);
     self.context = parent;
     res

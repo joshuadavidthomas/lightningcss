@@ -7,12 +7,12 @@ use crate::printer::Printer;
 use crate::properties::PropertyId;
 use crate::rules::supports::SupportsCondition;
 use crate::stylesheet::ParserOptions;
-use crate::targets::{should_compile, Targets};
+use crate::targets::{should_compile, Features, Targets};
 use crate::traits::{Parse, ParseWithOptions, ToCss};
 use crate::values::angle::Angle;
 use crate::values::color::{
   parse_hsl_hwb_components, parse_rgb_components, ColorFallbackKind, ComponentParser, CssColor, LightDarkColor,
-  HSL, RGBA, SRGB,
+  HSL, RGB, RGBA,
 };
 use crate::values::ident::{CustomIdent, DashedIdent, DashedIdentReference, Ident};
 use crate::values::length::{serialize_dimension, LengthValue};
@@ -1176,6 +1176,44 @@ impl<'i> TokenList<'i> {
     res
   }
 
+  pub(crate) fn get_features(&self) -> Features {
+    let mut features = Features::empty();
+    for token in &self.0 {
+      match token {
+        TokenOrValue::Color(color) => {
+          features |= color.get_features();
+        }
+        TokenOrValue::UnresolvedColor(unresolved_color) => {
+          features |= Features::SpaceSeparatedColorNotation;
+          match unresolved_color {
+            UnresolvedColor::LightDark { light, dark } => {
+              features |= Features::LightDark;
+              features |= light.get_features();
+              features |= dark.get_features();
+            }
+            _ => {}
+          }
+        }
+        TokenOrValue::Function(f) => {
+          features |= f.arguments.get_features();
+        }
+        TokenOrValue::Var(v) => {
+          if let Some(fallback) = &v.fallback {
+            features |= fallback.get_features();
+          }
+        }
+        TokenOrValue::Env(v) => {
+          if let Some(fallback) = &v.fallback {
+            features |= fallback.get_features();
+          }
+        }
+        _ => {}
+      }
+    }
+
+    features
+  }
+
   /// Substitutes variables with the provided values.
   #[cfg(feature = "substitute_variables")]
   #[cfg_attr(docsrs, doc(cfg(feature = "substitute_variables")))]
@@ -1556,7 +1594,7 @@ impl<'i> UnresolvedColor<'i> {
     match_ignore_ascii_case! { &*f,
       "rgb" => {
         input.parse_nested_block(|input| {
-          parser.parse_relative::<SRGB, _, _>(input, |input, parser| {
+          parser.parse_relative::<RGB, _, _>(input, |input, parser| {
             let (r, g, b, is_legacy) = parse_rgb_components(input, parser)?;
             if is_legacy {
               return Err(input.new_custom_error(ParserError::InvalidValue))
@@ -1598,20 +1636,15 @@ impl<'i> UnresolvedColor<'i> {
   where
     W: std::fmt::Write,
   {
-    #[inline]
-    fn c(c: &f32) -> i32 {
-      (c * 255.0).round().clamp(0.0, 255.0) as i32
-    }
-
     match self {
       UnresolvedColor::RGB { r, g, b, alpha } => {
-        if should_compile!(dest.targets, SpaceSeparatedColorNotation) {
+        if should_compile!(dest.targets.current, SpaceSeparatedColorNotation) {
           dest.write_str("rgba(")?;
-          c(r).to_css(dest)?;
+          r.to_css(dest)?;
           dest.delim(',', false)?;
-          c(g).to_css(dest)?;
+          g.to_css(dest)?;
           dest.delim(',', false)?;
-          c(b).to_css(dest)?;
+          b.to_css(dest)?;
           dest.delim(',', false)?;
           alpha.to_css(dest, is_custom_property)?;
           dest.write_char(')')?;
@@ -1619,23 +1652,23 @@ impl<'i> UnresolvedColor<'i> {
         }
 
         dest.write_str("rgb(")?;
-        c(r).to_css(dest)?;
+        r.to_css(dest)?;
         dest.write_char(' ')?;
-        c(g).to_css(dest)?;
+        g.to_css(dest)?;
         dest.write_char(' ')?;
-        c(b).to_css(dest)?;
+        b.to_css(dest)?;
         dest.delim('/', true)?;
         alpha.to_css(dest, is_custom_property)?;
         dest.write_char(')')
       }
       UnresolvedColor::HSL { h, s, l, alpha } => {
-        if should_compile!(dest.targets, SpaceSeparatedColorNotation) {
+        if should_compile!(dest.targets.current, SpaceSeparatedColorNotation) {
           dest.write_str("hsla(")?;
           h.to_css(dest)?;
           dest.delim(',', false)?;
-          Percentage(*s).to_css(dest)?;
+          Percentage(*s / 100.0).to_css(dest)?;
           dest.delim(',', false)?;
-          Percentage(*l).to_css(dest)?;
+          Percentage(*l / 100.0).to_css(dest)?;
           dest.delim(',', false)?;
           alpha.to_css(dest, is_custom_property)?;
           dest.write_char(')')?;
@@ -1645,15 +1678,15 @@ impl<'i> UnresolvedColor<'i> {
         dest.write_str("hsl(")?;
         h.to_css(dest)?;
         dest.write_char(' ')?;
-        Percentage(*s).to_css(dest)?;
+        Percentage(*s / 100.0).to_css(dest)?;
         dest.write_char(' ')?;
-        Percentage(*l).to_css(dest)?;
+        Percentage(*l / 100.0).to_css(dest)?;
         dest.delim('/', true)?;
         alpha.to_css(dest, is_custom_property)?;
         dest.write_char(')')
       }
       UnresolvedColor::LightDark { light, dark } => {
-        if should_compile!(dest.targets, LightDark) {
+        if should_compile!(dest.targets.current, LightDark) {
           dest.write_str("var(--lightningcss-light")?;
           dest.delim(',', false)?;
           light.to_css(dest, is_custom_property)?;

@@ -3394,7 +3394,7 @@ pub mod tests {
     }
   }
 
-  fn parse<'i>(input: &'i str) -> Result<SelectorList<DummySelectorImpl>, SelectorParseError<'i>> {
+  fn parse<'i>(input: &'i str) -> Result<SelectorList<'i, DummySelectorImpl>, SelectorParseError<'i>> {
     parse_ns(input, &DummyParser::default())
   }
 
@@ -3932,6 +3932,17 @@ pub mod tests {
 
     assert!(parse("foo::details-content").is_ok());
     assert!(parse("foo::target-text").is_ok());
+
+    assert!(parse("select::picker").is_err());
+    assert!(parse("::picker()").is_err());
+    assert!(parse("::picker(select)").is_ok());
+    assert!(parse("select::picker-icon").is_ok());
+    assert!(parse("option::checkmark").is_ok());
+
+    assert!(parse("::grammar-error").is_ok());
+    assert!(parse("::spelling-error").is_ok());
+    assert!(parse("::part(mypart)::grammar-error").is_ok());
+    assert!(parse("::part(mypart)::spelling-error").is_ok());
   }
 
   #[test]

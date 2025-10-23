@@ -292,7 +292,13 @@ impl<'a, 'o, 'i> parcel_selectors::parser::Parser<'i> for SelectorParser<'a, 'o,
       "-webkit-scrollbar-corner" => WebKitScrollbar(WebKitScrollbarPseudoElement::Corner),
       "-webkit-resizer" => WebKitScrollbar(WebKitScrollbarPseudoElement::Resizer),
 
+      "picker-icon" => PickerIcon,
+      "checkmark" => Checkmark,
+
       "view-transition" => ViewTransition,
+
+      "grammar-error" => GrammarError,
+      "spelling-error" => SpellingError,
 
       _ => {
         if !name.starts_with('-') {
@@ -314,6 +320,7 @@ impl<'a, 'o, 'i> parcel_selectors::parser::Parser<'i> for SelectorParser<'a, 'o,
     let pseudo_element = match_ignore_ascii_case! { &name,
       "cue" => CueFunction { selector: Box::new(Selector::parse(self, arguments)?) },
       "cue-region" => CueRegionFunction { selector: Box::new(Selector::parse(self, arguments)?) },
+      "picker" => PickerFunction { identifier: Ident::parse(arguments)? },
       "view-transition-group" => ViewTransitionGroup { part: ViewTransitionPartSelector::parse(arguments)? },
       "view-transition-image-pair" => ViewTransitionImagePair { part: ViewTransitionPartSelector::parse(arguments)? },
       "view-transition-old" => ViewTransitionOld { part: ViewTransitionPartSelector::parse(arguments)? },
@@ -953,6 +960,19 @@ pub enum PseudoElement<'i> {
     /// A part name selector.
     part: ViewTransitionPartSelector<'i>,
   },
+  /// The [::picker()](https://drafts.csswg.org/css-forms-1/#the-picker-pseudo-element) functional pseudo element.
+  PickerFunction {
+    /// A form control identifier.
+    identifier: Ident<'i>,
+  },
+  /// The [::picker-icon](https://drafts.csswg.org/css-forms-1/#picker-opener-icon-the-picker-icon-pseudo-element) pseudo element.
+  PickerIcon,
+  /// The [::checkmark](https://drafts.csswg.org/css-forms-1/#styling-checkmarks-the-checkmark-pseudo-element) pseudo element.
+  Checkmark,
+  /// The [::grammar-error](https://drafts.csswg.org/css-pseudo/#selectordef-grammar-error) pseudo element.
+  GrammarError,
+  /// The [::spelling-error](https://drafts.csswg.org/css-pseudo/#selectordef-spelling-error) pseudo element.
+  SpellingError,
   /// An unknown pseudo element.
   Custom {
     /// The name of the pseudo element.
@@ -1213,6 +1233,15 @@ where
       part.to_css(dest)?;
       dest.write_char(')')
     }
+    PickerFunction { identifier } => {
+      dest.write_str("::picker(")?;
+      identifier.to_css(dest)?;
+      dest.write_char(')')
+    }
+    PickerIcon => dest.write_str("::picker-icon"),
+    Checkmark => dest.write_str("::checkmark"),
+    GrammarError => dest.write_str("::grammar-error"),
+    SpellingError => dest.write_str("::spelling-error"),
     Custom { name: val } => {
       dest.write_str("::")?;
       return dest.write_str(val);
@@ -1371,7 +1400,7 @@ where
 
   let mut combinators = selector.iter_raw_match_order().rev().filter_map(|x| x.as_combinator());
   let compound_selectors = selector.iter_raw_match_order().as_slice().split(|x| x.is_combinator()).rev();
-  let should_compile_nesting = should_compile!(dest.targets, Nesting);
+  let should_compile_nesting = should_compile!(dest.targets.current, Nesting);
 
   let mut first = true;
   let mut combinators_exhausted = false;
@@ -1681,7 +1710,7 @@ where
   } else {
     // If there is no context, we are at the root if nesting is supported. This is equivalent to :scope.
     // Otherwise, if nesting is supported, serialize the nesting selector directly.
-    if should_compile!(dest.targets, Nesting) {
+    if should_compile!(dest.targets.current, Nesting) {
       dest.write_str(":scope")
     } else {
       dest.write_char('&')
@@ -1924,6 +1953,11 @@ pub(crate) fn is_compatible(selectors: &[Selector], targets: Targets) -> bool {
           | PseudoElement::ViewTransitionOld { .. }
           | PseudoElement::ViewTransitionGroup { .. }
           | PseudoElement::ViewTransitionImagePair { .. } => Feature::ViewTransition,
+          PseudoElement::PickerFunction { identifier: _ } => Feature::Picker,
+          PseudoElement::PickerIcon => Feature::PickerIcon,
+          PseudoElement::Checkmark => Feature::Checkmark,
+          PseudoElement::GrammarError => Feature::GrammarError,
+          PseudoElement::SpellingError => Feature::SpellingError,
           PseudoElement::Custom { name: _ } | _ => return false,
         },
 

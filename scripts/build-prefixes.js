@@ -71,6 +71,10 @@ prefixes['any-pseudo'] = {
     })
 }
 
+// Safari 4-13 supports background-clip: text with a prefix.
+prefixes['background-clip'].browsers.push('safari 13');
+prefixes['background-clip'].browsers.push('ios_saf 4', 'ios_saf 13');
+
 let flexSpec = {};
 let oldGradient = {};
 let p = new Map();
@@ -334,6 +338,11 @@ let mdnFeatures = {
   viewTransition: mdn.css.selectors['view-transition'].__compat.support,
   detailsContent: mdn.css.selectors['details-content'].__compat.support,
   targetText: mdn.css.selectors['target-text'].__compat.support,
+  picker: mdn.css.selectors.picker.__compat.support,
+  pickerIcon: mdn.css.selectors['picker-icon'].__compat.support,
+  checkmark: mdn.css.selectors.checkmark.__compat.support,
+  grammarError: mdn.css.selectors['grammar-error'].__compat.support,
+  spellingError: mdn.css.selectors['spelling-error'].__compat.support,
 };
 
 for (let key in mdn.css.types.length) {
