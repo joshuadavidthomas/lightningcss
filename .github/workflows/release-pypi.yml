@@ -95,7 +95,16 @@ jobs:
       - name: Cherry-pick metadata updates
         run: |
           git fetch origin ${{ needs.prepare.outputs.commit_sha }}
-          git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}
+          if git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}; then
+            echo "Cherry-pick succeeded"
+          elif git status | grep -q "previous cherry-pick is now empty"; then
+            echo "No changes to cherry-pick (already applied), skipping"
+            git cherry-pick --skip
+          else
+            echo "Cherry-pick failed with unexpected error"
+            git status
+            exit 1
+          fi
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -140,7 +149,16 @@ jobs:
       - name: Cherry-pick metadata updates
         run: |
           git fetch origin ${{ needs.prepare.outputs.commit_sha }}
-          git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}
+          if git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}; then
+            echo "Cherry-pick succeeded"
+          elif git status | grep -q "previous cherry-pick is now empty"; then
+            echo "No changes to cherry-pick (already applied), skipping"
+            git cherry-pick --skip
+          else
+            echo "Cherry-pick failed with unexpected error"
+            git status
+            exit 1
+          fi
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -175,7 +193,16 @@ jobs:
       - name: Cherry-pick metadata updates
         run: |
           git fetch origin ${{ needs.prepare.outputs.commit_sha }}
-          git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}
+          if git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}; then
+            echo "Cherry-pick succeeded"
+          elif git status | grep -q "previous cherry-pick is now empty"; then
+            echo "No changes to cherry-pick (already applied), skipping"
+            git cherry-pick --skip
+          else
+            echo "Cherry-pick failed with unexpected error"
+            git status
+            exit 1
+          fi
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -209,7 +236,16 @@ jobs:
       - name: Cherry-pick metadata updates
         run: |
           git fetch origin ${{ needs.prepare.outputs.commit_sha }}
-          git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}
+          if git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}; then
+            echo "Cherry-pick succeeded"
+          elif git status | grep -q "previous cherry-pick is now empty"; then
+            echo "No changes to cherry-pick (already applied), skipping"
+            git cherry-pick --skip
+          else
+            echo "Cherry-pick failed with unexpected error"
+            git status
+            exit 1
+          fi
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -236,7 +272,16 @@ jobs:
       - name: Cherry-pick metadata updates
         run: |
           git fetch origin ${{ needs.prepare.outputs.commit_sha }}
-          git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}
+          if git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}; then
+            echo "Cherry-pick succeeded"
+          elif git status | grep -q "previous cherry-pick is now empty"; then
+            echo "No changes to cherry-pick (already applied), skipping"
+            git cherry-pick --skip
+          else
+            echo "Cherry-pick failed with unexpected error"
+            git status
+            exit 1
+          fi
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
