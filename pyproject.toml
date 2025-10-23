@@ -20,7 +20,7 @@ classifiers = [
   "Topic :: Software Development :: Build Tools",
   "Topic :: Utilities",
 ]
-version = "1.29.3"
+version = "1.30.0"
 
 [project.urls]
 Repository = "https://github.com/joshuadavidthomas/lightningcss"
