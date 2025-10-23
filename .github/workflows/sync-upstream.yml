@@ -72,16 +72,7 @@ jobs:
             echo "No branch changes to push"
           fi
 
-          UP=$(git rev-parse upstream/master)
-          CUR=$(git ls-remote --heads origin master | awk '{print $1}')
-          if [[ -z "$CUR" ]]; then
-            echo "Would create origin/master at $UP"
-          elif [[ "$CUR" != "$UP" ]]; then
-            echo "Would force-update origin/master ($CUR -> $UP)"
-          else
-            echo "Master already mirrors upstream/master"
-          fi
-
+          # Plan: sync missing tags from upstream to origin (non-destructive)
           mapfile -t UP_TAGS < <(git ls-remote --tags upstream | awk '{print $2}' | sed 's@refs/tags/@@' | sed 's/\^{}$//' | sort -u)
           mapfile -t OR_TAGS < <(git ls-remote --tags origin | awk '{print $2}' | sed 's@refs/tags/@@' | sed 's/\^{}$//' | sort -u)
           MISSING_LIST=$(comm -23 <(printf "%s\n" "${UP_TAGS[@]}") <(printf "%s\n" "${OR_TAGS[@]}") || true)
@@ -94,7 +85,7 @@ jobs:
             echo "No upstream tags missing on origin"
           fi
 
-      - name: Push branch, mirror master, and sync tags
+      - name: Push branch and sync tags
         if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
@@ -105,19 +96,6 @@ jobs:
             git push origin master
           else
             echo "Branch unchanged; not pushing master"
-          fi
-
-          # Mirror origin/master to upstream/master
-          UP=$(git rev-parse upstream/master)
-          CUR=$(git ls-remote --heads origin master | awk '{print $1}')
-          if [[ -z "$CUR" ]]; then
-            echo "Creating origin/master at $UP"
-            git push origin upstream/master:master
-          elif [[ "$CUR" != "$UP" ]]; then
-            echo "Force-updating origin/master to upstream/master ($CUR -> $UP)"
-            git push --force-with-lease origin upstream/master:master
-          else
-            echo "Master already mirrors upstream/master"
           fi
 
           # Sync missing tags (push only tags that exist on upstream but not on origin)
