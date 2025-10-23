@@ -181,6 +181,7 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
       - name: Cherry-pick metadata updates
+        shell: bash
         run: |
           git fetch origin ${{ needs.prepare.outputs.commit_sha }}
           if git diff HEAD ${{ needs.prepare.outputs.commit_sha }} --quiet -- pyproject.toml; then
