@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: python
+          ref: master
 
       - name: Configure git
         run: |
@@ -50,7 +50,7 @@ jobs:
           echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
           echo "ahead=$AHEAD"   >> "$GITHUB_OUTPUT"
 
-      - name: Merge upstream/master into python
+      - name: Merge upstream/master into master
         if: ${{ steps.ab.outputs.behind != '0' }}
         run: |
           set -e
@@ -64,9 +64,10 @@ jobs:
         if: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          BRANCH_TIP=$(git rev-parse python)
+          # Plan: push master branch only if changed
+          BRANCH_TIP=$(git rev-parse master)
           if [[ "${{ steps.head.outputs.sha }}" != "$BRANCH_TIP" ]]; then
-            echo "Would push branch python"
+            echo "Would push branch master"
           else
             echo "No branch changes to push"
           fi
@@ -97,14 +98,13 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
-
-          # Push branch only if python has new commits
-          BRANCH_TIP=$(git rev-parse python)
+          # Push branch only if master has new commits
+          BRANCH_TIP=$(git rev-parse master)
           if [[ "${{ steps.head.outputs.sha }}" != "$BRANCH_TIP" ]]; then
-            echo "Pushing branch python"
-            git push origin python
+            echo "Pushing branch master"
+            git push origin master
           else
-            echo "Branch unchanged; not pushing python"
+            echo "Branch unchanged; not pushing master"
           fi
 
           # Mirror origin/master to upstream/master
