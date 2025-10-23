@@ -80,7 +80,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.prepare.outputs.commit_sha }}
+          ref: ${{ github.sha }}
+      - name: Configure git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+      - name: Cherry-pick metadata updates
+        run: |
+          git fetch origin ${{ needs.prepare.outputs.commit_sha }}
+          git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -117,7 +125,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.prepare.outputs.commit_sha }}
+          ref: ${{ github.sha }}
+      - name: Configure git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+      - name: Cherry-pick metadata updates
+        run: |
+          git fetch origin ${{ needs.prepare.outputs.commit_sha }}
+          git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -144,7 +160,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.prepare.outputs.commit_sha }}
+          ref: ${{ github.sha }}
+      - name: Configure git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+      - name: Cherry-pick metadata updates
+        run: |
+          git fetch origin ${{ needs.prepare.outputs.commit_sha }}
+          git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -170,7 +194,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.prepare.outputs.commit_sha }}
+          ref: ${{ github.sha }}
+      - name: Configure git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+      - name: Cherry-pick metadata updates
+        run: |
+          git fetch origin ${{ needs.prepare.outputs.commit_sha }}
+          git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -189,7 +221,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.prepare.outputs.commit_sha }}
+          ref: ${{ github.sha }}
+      - name: Configure git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+      - name: Cherry-pick metadata updates
+        run: |
+          git fetch origin ${{ needs.prepare.outputs.commit_sha }}
+          git cherry-pick --strategy-option=theirs ${{ needs.prepare.outputs.commit_sha }}
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
