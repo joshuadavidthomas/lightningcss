@@ -20,7 +20,7 @@ jobs:
     permissions:
       contents: write
     outputs:
-      commit_sha: ${{ steps.out.outputs.sha }}
+      commit_sha: ${{ steps.final_sha.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,18 +33,21 @@ jobs:
           git config user.email "actions@github.com"
 
       - name: Record initial HEAD
-        id: head
+        id: initial_sha
         run: |
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Swap in package.json from tag
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         run: |
           TAG_REF="${{ inputs.tag || github.ref_name }}"
           git show "refs/tags/$TAG_REF:package.json" > package.json
 
       - uses: extractions/setup-just@v2
+        if: ${{ github.event_name != 'workflow_dispatch' }}
 
       - name: Update pyproject.toml from package.json
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         run: |
           just update-metadata
           git checkout -- package.json || true
@@ -56,14 +59,16 @@ jobs:
             echo "No metadata changes to commit"
           fi
 
-      - name: Push master if changed and output sha
-        id: out
+      - name: Output final commit sha
+        id: final_sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Push master if changed
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         run: |
-          CUR=$(git rev-parse HEAD)
-          if [[ "${{ steps.head.outputs.sha }}" != "$CUR" ]]; then
+          if [[ "${{ steps.final_sha.outputs.sha }}" != "${{ steps.initial_sha.outputs.sha }}" ]]; then
             git push origin master
           fi
-          echo "sha=$CUR" >> "$GITHUB_OUTPUT"
 
   linux:
     runs-on: ${{ matrix.platform.runner }}
@@ -88,6 +93,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
       - uses: ./.github/actions/cherry-pick-metadata
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         with:
           commit-sha: ${{ needs.prepare.outputs.commit_sha }}
       - name: Build wheels
@@ -128,6 +134,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
       - uses: ./.github/actions/cherry-pick-metadata
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         with:
           commit-sha: ${{ needs.prepare.outputs.commit_sha }}
       - name: Build wheels
@@ -158,6 +165,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
       - uses: ./.github/actions/cherry-pick-metadata
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         with:
           commit-sha: ${{ needs.prepare.outputs.commit_sha }}
       - name: Build wheels
@@ -187,6 +195,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
       - uses: ./.github/actions/cherry-pick-metadata
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         with:
           commit-sha: ${{ needs.prepare.outputs.commit_sha }}
       - name: Build wheels
@@ -209,9 +218,10 @@ jobs:
         with:
           ref: ${{ github.sha }}
       - uses: ./.github/actions/cherry-pick-metadata
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         with:
           commit-sha: ${{ needs.prepare.outputs.commit_sha }}
-      - name: Build sdist
+      - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
@@ -225,7 +235,6 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
     needs: [linux, musllinux, windows, macos, sdist]
     environment: pypi
     permissions:
