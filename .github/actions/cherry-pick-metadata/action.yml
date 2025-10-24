@@ -1,0 +1,27 @@
+name: Cherry-pick metadata updates
+description: Cherry-pick pyproject.toml updates from prepare job
+
+inputs:
+  commit-sha:
+    description: SHA of commit with metadata updates
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Configure git
+      shell: bash
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+
+    - name: Cherry-pick metadata updates
+      shell: bash
+      run: |
+        set -e
+        git fetch origin ${{ inputs.commit-sha }}
+        if git diff HEAD ${{ inputs.commit-sha }} --quiet -- pyproject.toml; then
+          echo "pyproject.toml already up-to-date, skipping cherry-pick"
+        else
+          git cherry-pick --strategy-option=theirs ${{ inputs.commit-sha }}
+        fi
