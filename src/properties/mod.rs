@@ -852,7 +852,10 @@ macro_rules! define_properties {
           },
           Custom(custom) => {
             custom.name.to_css(dest)?;
-            dest.delim(':', false)?;
+            dest.write_char(':')?;
+            if !custom.value.starts_with_whitespace() {
+              dest.whitespace()?;
+            }
             self.value_to_css(dest)?;
             write_important!();
             return Ok(())
@@ -1613,6 +1616,7 @@ define_properties! {
 
   // https://drafts.csswg.org/css-color-adjust/
   "color-scheme": ColorScheme(ColorScheme),
+  "print-color-adjust": PrintColorAdjust(PrintColorAdjust, VendorPrefix) / WebKit,
 }
 
 impl<'i, T: smallvec::Array<Item = V>, V: Parse<'i>> Parse<'i> for SmallVec<T> {

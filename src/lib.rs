@@ -79,6 +79,13 @@ mod tests {
     assert_eq!(res.code, expected);
   }
 
+  fn test_with_printer_options<'i, 'o>(source: &'i str, expected: &'i str, options: PrinterOptions<'o>) {
+    let mut stylesheet = StyleSheet::parse(&source, ParserOptions::default()).unwrap();
+    stylesheet.minify(MinifyOptions::default()).unwrap();
+    let res = stylesheet.to_css(options).unwrap();
+    assert_eq!(res.code, expected);
+  }
+
   fn minify_test(source: &str, expected: &str) {
     minify_test_with_options(source, expected, ParserOptions::default())
   }
@@ -6965,6 +6972,10 @@ mod tests {
         &format!(":root::{}(.foo.bar) {{position: fixed}}", name),
         &format!(":root::{}(.foo.bar){{position:fixed}}", name),
       );
+      minify_test(
+        &format!(":root::{}(  .foo.bar  ) {{position: fixed}}", name),
+        &format!(":root::{}(.foo.bar){{position:fixed}}", name),
+      );
       error_test(
         &format!(":root::{}(foo):first-child {{position: fixed}}", name),
         ParserError::SelectorError(SelectorError::InvalidPseudoClassAfterPseudoElement),
@@ -8013,7 +8024,22 @@ mod tests {
     );
     minify_test(
       ".foo { width: calc(100% - 2 (2 * var(--card-margin))); }",
-      ".foo{width:calc(100% - 2 (2*var(--card-margin)))}",
+      ".foo{width:calc(100% - 2 (2 * var(--card-margin)))}",
+    );
+
+    test(
+      indoc! {r#"
+    .test {
+      width: calc(var(--test) + 2px);
+      width: calc(var(--test) - 2px);
+    }
+    "#},
+      indoc! {r#"
+    .test {
+      width: calc(var(--test) + 2px);
+      width: calc(var(--test) - 2px);
+    }
+    "#},
     );
   }
 
@@ -8074,7 +8100,7 @@ mod tests {
     minify_test(".foo { rotate: atan2(0, -1)", ".foo{rotate:180deg}");
     minify_test(".foo { rotate: atan2(-1, 1)", ".foo{rotate:-45deg}");
     // incompatible units
-    minify_test(".foo { rotate: atan2(1px, -1vw)", ".foo{rotate:atan2(1px,-1vw)}");
+    minify_test(".foo { rotate: atan2(1px, -1vw)", ".foo{rotate:atan2(1px, -1vw)}");
   }
 
   #[test]
@@ -8106,7 +8132,10 @@ mod tests {
     minify_test(".foo { width: abs(1%)", ".foo{width:abs(1%)}"); // spec says percentages must be against resolved value
 
     minify_test(".foo { width: calc(10px * sign(-1vw)", ".foo{width:-10px}");
-    minify_test(".foo { width: calc(10px * sign(1%)", ".foo{width:calc(10px*sign(1%))}");
+    minify_test(
+      ".foo { width: calc(10px * sign(1%)",
+      ".foo{width:calc(10px * sign(1%))}",
+    );
   }
 
   #[test]
@@ -9064,6 +9093,31 @@ mod tests {
       },
     );
 
+    test_with_printer_options(
+      r#"
+        @media (width < 256px) or (hover: none) {
+          .foo {
+            color: #fff;
+          }
+        }
+      "#,
+      indoc! { r#"
+        @media (not (min-width: 256px)) or (hover: none) {
+          .foo {
+            color: #fff;
+          }
+        }
+      "#},
+      PrinterOptions {
+        targets: Targets {
+          browsers: None,
+          include: Features::MediaRangeSyntax,
+          exclude: Features::empty(),
+        },
+        ..Default::default()
+      },
+    );
+
     error_test(
       "@media (min-width: hi) { .foo { color: chartreuse }}",
       ParserError::InvalidMediaQuery,
@@ -9108,6 +9162,12 @@ mod tests {
       "@media (prefers-color-scheme = dark) { .foo { color: chartreuse }}",
       ParserError::InvalidMediaQuery,
     );
+    error_test(
+      "@media unknown(foo) {}",
+      ParserError::UnexpectedToken(crate::properties::custom::Token::Function("unknown".into())),
+    );
+
+    error_recovery_test("@media unknown(foo) {}");
   }
 
   #[test]
@@ -13909,7 +13969,7 @@ mod tests {
     // ref: https://github.com/parcel-bundler/lightningcss/pull/255#issuecomment-1219049998
     minify_test(
       "@font-face {src: url(\"foo.ttf\") tech(palettes  color-colrv0  variations) format(opentype);}",
-      "@font-face{src:url(foo.ttf) tech(palettes color-colrv0 variations)format(opentype)}",
+      "@font-face{src:url(foo.ttf) tech(palettes color-colrv0 variations) format(opentype)}",
     );
     // TODO(CGQAQ): make this test pass when we have strict mode
     // ref: https://github.com/web-platform-tests/wpt/blob/9f8a6ccc41aa725e8f51f4f096f686313bb88d8d/css/css-fonts/parsing/font-face-src-tech.html#L45
@@ -13931,7 +13991,7 @@ mod tests {
     // );
     minify_test(
       "@font-face {src: local(\"\") url(\"test.woff\");}",
-      "@font-face{src:local(\"\")url(test.woff)}",
+      "@font-face{src:local(\"\") url(test.woff)}",
     );
     minify_test("@font-face {font-weight: 200 400}", "@font-face{font-weight:200 400}");
     minify_test("@font-face {font-weight: 400 400}", "@font-face{font-weight:400}");
@@ -14029,7 +14089,7 @@ mod tests {
       font-family: Handover Sans;
       base-palette: 3;
       override-colors: 1 rgb(43, 12, 9), 3 var(--highlight);
-    }"#, "@font-palette-values --Cooler{font-family:Handover Sans;base-palette:3;override-colors:1 #2b0c09,3 var(--highlight)}");
+    }"#, "@font-palette-values --Cooler{font-family:Handover Sans;base-palette:3;override-colors:1 #2b0c09, 3 var(--highlight)}");
     prefix_test(
       r#"@font-palette-values --Cooler {
       font-family: Handover Sans;
@@ -20401,19 +20461,19 @@ mod tests {
     );
     minify_test(
       ".foo { color: color-mix(in srgb, currentColor, blue); }",
-      ".foo{color:color-mix(in srgb,currentColor,blue)}",
+      ".foo{color:color-mix(in srgb, currentColor, blue)}",
     );
     minify_test(
       ".foo { color: color-mix(in srgb, blue, currentColor); }",
-      ".foo{color:color-mix(in srgb,blue,currentColor)}",
+      ".foo{color:color-mix(in srgb, blue, currentColor)}",
     );
     minify_test(
       ".foo { color: color-mix(in srgb, accentcolor, blue); }",
-      ".foo{color:color-mix(in srgb,accentcolor,blue)}",
+      ".foo{color:color-mix(in srgb, accentcolor, blue)}",
     );
     minify_test(
       ".foo { color: color-mix(in srgb, blue, accentcolor); }",
-      ".foo{color:color-mix(in srgb,blue,accentcolor)}",
+      ".foo{color:color-mix(in srgb, blue, accentcolor)}",
     );
 
     // regex for converting web platform tests:
@@ -22607,15 +22667,15 @@ mod tests {
     minify_test(".foo { --test: var(--foo, 20px); }", ".foo{--test:var(--foo,20px)}");
     minify_test(
       ".foo { transition: var(--foo, 20px),\nvar(--bar, 40px); }",
-      ".foo{transition:var(--foo,20px),var(--bar,40px)}",
+      ".foo{transition:var(--foo,20px), var(--bar,40px)}",
     );
     minify_test(
       ".foo { background: var(--color) var(--image); }",
-      ".foo{background:var(--color)var(--image)}",
+      ".foo{background:var(--color) var(--image)}",
     );
     minify_test(
       ".foo { height: calc(var(--spectrum-global-dimension-size-300) / 2);",
-      ".foo{height:calc(var(--spectrum-global-dimension-size-300)/2)}",
+      ".foo{height:calc(var(--spectrum-global-dimension-size-300) / 2)}",
     );
     minify_test(
       ".foo { color: var(--color, rgb(255, 255, 0)); }",
@@ -22627,11 +22687,31 @@ mod tests {
     );
     minify_test(
       ".foo { color: var(--color, rgb(var(--red), var(--green), 0)); }",
-      ".foo{color:var(--color,rgb(var(--red),var(--green),0))}",
+      ".foo{color:var(--color,rgb(var(--red), var(--green), 0))}",
     );
     minify_test(".foo { --test: .5s; }", ".foo{--test:.5s}");
     minify_test(".foo { --theme-sizes-1\\/12: 2 }", ".foo{--theme-sizes-1\\/12:2}");
     minify_test(".foo { --test: 0px; }", ".foo{--test:0px}");
+
+    // Test attr() function with type() syntax - minified
+    minify_test(
+      ".foo { background-color: attr(data-color type(<color>)); }",
+      ".foo{background-color:attr(data-color type(<color>))}",
+    );
+    minify_test(
+      ".foo { width: attr(data-width type(<length>), 100px); }",
+      ".foo{width:attr(data-width type(<length>), 100px)}",
+    );
+
+    // Test attr() function with type() syntax - non-minified (issue with extra spaces)
+    test(
+      ".foo { background-color: attr(data-color type(<color>)); }",
+      ".foo {\n  background-color: attr(data-color type(<color>));\n}\n",
+    );
+    test(
+      ".foo { width: attr(data-width type(<length>), 100px); }",
+      ".foo {\n  width: attr(data-width type(<length>), 100px);\n}\n",
+    );
 
     prefix_test(
       r#"
@@ -23422,7 +23502,7 @@ mod tests {
     );
     attr_test(
       "text-decoration: var(--foo) lab(40% 56.6 39);",
-      "text-decoration:var(--foo)#b32323",
+      "text-decoration:var(--foo) #b32323",
       true,
       Some(Browsers {
         chrome: Some(90 << 16),
@@ -24648,7 +24728,9 @@ mod tests {
       indoc! {r#"
         div {
           color: #00f;
-          --button: focus { color: red; };
+          --button: focus {
+                    color: red;
+                  };
         }
       "#},
     );
@@ -24846,6 +24928,21 @@ mod tests {
         include: Features::Nesting,
         exclude: Features::empty(),
       },
+    );
+
+    minify_test(
+      r#"
+    .foo {
+      color: red;
+      .bar {
+        color: green;
+      }
+      color: blue;
+      .baz {
+        color: pink;
+      }
+    }"#,
+      ".foo{color:red;& .bar{color:green}color:#00f;& .baz{color:pink}}",
     );
   }
 
@@ -28742,6 +28839,44 @@ mod tests {
     "#,
       "@property --property-name{syntax:\"<color>\";inherits:true;initial-value:#00f}.foo{color:var(--property-name)}",
     );
+
+    test(
+      r#"
+      @media (width < 800px) {
+        @property --property-name {
+          syntax: '*';
+          inherits: false;
+        }
+      }
+    "#,
+      indoc! {r#"
+        @media (width < 800px) {
+          @property --property-name {
+            syntax: "*";
+            inherits: false
+          }
+        }
+    "#},
+    );
+
+    test(
+      r#"
+      @layer foo {
+        @property --property-name {
+          syntax: '*';
+          inherits: false;
+        }
+      }
+    "#,
+      indoc! {r#"
+        @layer foo {
+          @property --property-name {
+            syntax: "*";
+            inherits: false
+          }
+        }
+    "#},
+    );
   }
 
   #[test]
@@ -29335,6 +29470,56 @@ mod tests {
     "#,
       "@container style(width){.foo{color:red}}",
     );
+    minify_test(
+      r#"
+      @container scroll-state(scrollable: top) {
+        .foo {
+          color: red;
+        }
+      }
+    "#,
+      "@container scroll-state(scrollable:top){.foo{color:red}}",
+    );
+    minify_test(
+      r#"
+      @container scroll-state((stuck: top) and (stuck: left)) {
+        .foo {
+          color: red;
+        }
+      }
+    "#,
+      "@container scroll-state((stuck:top) and (stuck:left)){.foo{color:red}}",
+    );
+    minify_test(
+      r#"
+      @container scroll-state(not ((scrollable: bottom) and (scrollable: right))) {
+        .foo {
+          color: red;
+        }
+      }
+    "#,
+      "@container scroll-state(not ((scrollable:bottom) and (scrollable:right))){.foo{color:red}}",
+    );
+    minify_test(
+      r#"
+      @container (scroll-state(scrollable: inline-end)) {
+        .foo {
+          color: red;
+        }
+      }
+    "#,
+      "@container scroll-state(scrollable:inline-end){.foo{color:red}}",
+    );
+    minify_test(
+      r#"
+      @container not scroll-state(scrollable: top) {
+        .foo {
+          color: red;
+        }
+      }
+    "#,
+      "@container not scroll-state(scrollable:top){.foo{color:red}}",
+    );
 
     // Disallow 'none', 'not', 'and', 'or' as a `<container-name>`
     // https://github.com/w3c/csswg-drafts/issues/7203#issuecomment-1144257312
@@ -29379,6 +29564,16 @@ mod tests {
       "@container style(style(--foo: bar)) {}",
       ParserError::UnexpectedToken(crate::properties::custom::Token::Function("style".into())),
     );
+    error_test(
+      "@container scroll-state(scroll-state(scrollable: top)) {}",
+      ParserError::InvalidMediaQuery,
+    );
+    error_test(
+      "@container unknown(foo) {}",
+      ParserError::UnexpectedToken(crate::properties::custom::Token::Function("unknown".into())),
+    );
+
+    error_recovery_test("@container unknown(foo) {}");
   }
 
   #[test]
@@ -29400,11 +29595,12 @@ mod tests {
         color: red;
       }
     }"#,
-      indoc! {r#"
-      @foo test {
-        div { color: red; }
-      }
-      "#},
+      indoc! { r#"@foo test {
+      div {
+            color: red;
+          }
+    }
+    "#},
     );
     minify_test(
       r#"@foo test {
@@ -29920,6 +30116,35 @@ mod tests {
         }),
         include: Features::empty(),
         exclude: Features::LightDark,
+      },
+    );
+  }
+
+  #[test]
+  fn test_print_color_adjust() {
+    prefix_test(
+      ".foo { print-color-adjust: exact; }",
+      indoc! { r#"
+      .foo {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      "#},
+      Browsers {
+        chrome: Some(135 << 16),
+        ..Browsers::default()
+      },
+    );
+    prefix_test(
+      ".foo { print-color-adjust: exact; }",
+      indoc! { r#"
+      .foo {
+        print-color-adjust: exact;
+      }
+      "#},
+      Browsers {
+        chrome: Some(137 << 16),
+        ..Browsers::default()
       },
     );
   }
