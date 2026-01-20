@@ -393,6 +393,122 @@ mod tests {
   }
 
   #[test]
+  pub fn test_math_fn() {
+    // max()
+    minify_test(
+      r#"
+      .foo {
+        color: rgb(max(255, 100), 0, 0);
+      }
+    "#,
+      indoc! {".foo{color:red}"
+      },
+    );
+    // min()
+    minify_test(
+      r#"
+      .foo {
+        color: rgb(min(255, 500), 0, 0);
+      }
+    "#,
+      indoc! {".foo{color:red}"
+      },
+    );
+    // abs()
+    minify_test(
+      r#"
+      .foo {
+        color: rgb(abs(-255), 0, 0);
+      }
+    "#,
+      indoc! {".foo{color:red}"
+      },
+    );
+    // clamp()
+    minify_test(
+      r#"
+      .foo {
+        flex: clamp(1, 5.20, 20);
+        color: rgb(clamp(0, 255, 300), 0, 0);
+      }
+    "#,
+      indoc! {".foo{color:red;flex:5.2}"
+      },
+    );
+    // round()
+    minify_test(
+      r#"
+      .round-color {
+        color: rgb(round(down, 255.6, 1), 0, 0);
+      }
+    "#,
+      indoc! {".round-color{color:red}"
+      },
+    );
+    // hypot()
+    minify_test(
+      r#"
+      .hypot-color {
+        color: rgb(hypot(255, 0), 0, 0);
+      }
+    "#,
+      indoc! {".hypot-color{color:red}"
+      },
+    );
+    // sign(), sign(50) = 1
+    minify_test(
+      r#"
+      .sign-color {
+        color: rgb(sign(50), 0, 0);
+      }
+    "#,
+      indoc! {".sign-color{color:#010000}"
+      },
+    );
+    // rem(), rem(21, 2) = 1
+    minify_test(
+      r#"
+      .rem-color {
+        color: rgb(rem(21, 2), 0, 0);
+      }
+    "#,
+      indoc! {".rem-color{color:#010000}"
+      },
+    );
+    // max() in width
+    minify_test(
+      r#"
+      .foo {
+        width: max(200px,   5px);
+      }
+    "#,
+      indoc! {".foo{width:200px}"
+      },
+    );
+    // max() in opacity
+    minify_test(
+      r#"
+      .foo {
+        opacity: max(1, 0.2);
+        filter: invert(min(1, 0.5));
+      }
+    "#,
+      indoc! {".foo{opacity:1;filter:invert(.5)}"
+      },
+    );
+    // TODO: support calc in Integer
+    // minify_test(
+    //   r#"
+    //   .foo {
+    //     z-index: max(100,    20);
+    //   }
+    // "#,
+    //   indoc! {".foo{z-index:100}"
+    //   },
+    // );
+  }
+
+  #[test]
   pub fn test_border() {
     test(
       r#"
@@ -4195,11 +4311,23 @@ mod tests {
     );
     minify_test(
       ".foo { background-position: left 10px center }",
-      ".foo{background-position:10px 50%}",
+      ".foo{background-position:10px}",
     );
     minify_test(
       ".foo { background-position: right 10px center }",
       ".foo{background-position:right 10px center}",
+    );
+    minify_test(
+      ".foo { background-position: center top 10px }",
+      ".foo{background-position:50% 10px}",
+    );
+    minify_test(
+      ".foo { background-position: center bottom 10px }",
+      ".foo{background-position:center bottom 10px}",
+    );
+    minify_test(
+      ".foo { background-position: center 10px }",
+      ".foo{background-position:50% 10px}",
     );
     minify_test(
       ".foo { background-position: right 10px top 20px }",
@@ -4220,6 +4348,26 @@ mod tests {
     minify_test(
       ".foo { background-position: bottom right }",
       ".foo{background-position:100% 100%}",
+    );
+    minify_test(
+      ".foo { background-position: center top }",
+      ".foo{background-position:top}",
+    );
+    minify_test(
+      ".foo { background-position: center bottom }",
+      ".foo{background-position:bottom}",
+    );
+    minify_test(
+      ".foo { background-position: left center }",
+      ".foo{background-position:0}",
+    );
+    minify_test(
+      ".foo { background-position: right center }",
+      ".foo{background-position:100%}",
+    );
+    minify_test(
+      ".foo { background-position: 20px center }",
+      ".foo{background-position:20px}",
     );
 
     minify_test(
@@ -7009,7 +7157,56 @@ mod tests {
         ParserError::SelectorError(SelectorError::InvalidState),
       );
     }
+    minify_test(
+      "wa-checkbox:state(disabled) {color:red}",
+      "wa-checkbox:state(disabled){color:red}",
+    );
+    minify_test(
+      "button:state(checked) {background:blue}",
+      "button:state(checked){background:#00f}",
+    );
+    minify_test(
+      "input:state(custom-state) {border:1px solid}",
+      "input:state(custom-state){border:1px solid}",
+    );
+    minify_test(
+      "button:active:not(:state(disabled))::part(control) {border:1px solid}",
+      "button:active:not(:state(disabled))::part(control){border:1px solid}",
+    );
+    // Test nested CSS with :state() selector
+    nesting_test(
+      r#"
+        custom-element {
+          color: blue;
+          &:state(loading) {
+            opacity: 0.5;
+            & .spinner {
+              display: block;
+            }
+          }
+          &:state(error) {
+            border: 2px solid red;
+          }
+        }
+      "#,
+      indoc! {r#"
+        custom-element {
+          color: #00f;
+        }
 
+        custom-element:state(loading) {
+          opacity: .5;
+        }
+
+        custom-element:state(loading) .spinner {
+          display: block;
+        }
+
+        custom-element:state(error) {
+          border: 2px solid red;
+        }
+      "#},
+    );
     minify_test(".foo ::deep .bar {width: 20px}", ".foo ::deep .bar{width:20px}");
     minify_test(".foo::deep .bar {width: 20px}", ".foo::deep .bar{width:20px}");
     minify_test(".foo ::deep.bar {width: 20px}", ".foo ::deep.bar{width:20px}");
@@ -9166,6 +9363,10 @@ mod tests {
       "@media unknown(foo) {}",
       ParserError::UnexpectedToken(crate::properties::custom::Token::Function("unknown".into())),
     );
+
+    // empty brackets should return a clearer error message
+    error_test("@media () {}", ParserError::EmptyBracketInCondition);
+    error_test("@media screen and () {}", ParserError::EmptyBracketInCondition);
 
     error_recovery_test("@media unknown(foo) {}");
   }
@@ -21988,6 +22189,214 @@ mod tests {
       ".foo{grid-template-areas:\"head head\"\"nav main\"\". .\"}",
     );
 
+    // to grid-* shorthand
+    minify_test(
+      r#"
+      .test-miss-areas {
+        grid-template-columns: 1fr 90px;
+        grid-template-rows: auto 80px;
+        grid-template-areas: "one";
+      }
+    "#,
+      ".test-miss-areas{grid-template:\"one\"\".\"80px/1fr 90px}",
+    );
+    test(
+      r#"
+      .test-miss-areas-2 {
+        grid-template-columns: 1fr 1fr 1fr;      
+        grid-template-rows: 30px 60px 100px;
+        grid-template-areas: "a a a" "b c c";
+      }
+    "#,
+      indoc! { r#"
+      .test-miss-areas-2 {
+        grid-template: "a a a" 30px
+                       "b c c" 60px
+                       ". . ." 100px
+                       / 1fr 1fr 1fr;
+      }
+    "#},
+    );
+
+    test(
+      r#"
+      .test-miss-areas-3 {
+        grid-template: 30px 60px 100px / 1fr 1fr 1fr;
+        grid-template-areas: "a a a" "b c c";
+      }
+    "#,
+      indoc! { r#"
+      .test-miss-areas-3 {
+        grid-template: "a a a" 30px
+                       "b c c" 60px
+                       ". . ." 100px
+                       / 1fr 1fr 1fr;
+      }
+    "#},
+    );
+
+    test(
+      r#"
+      .test-miss-areas-4 {
+        grid: 30px 60px 100px / 1fr 1fr 1fr;
+        grid-template-areas: "a a a" "b c c";
+      }
+    "#,
+      indoc! { r#"
+      .test-miss-areas-4 {
+        grid: "a a a" 30px
+              "b c c" 60px
+              ". . ." 100px
+              / 1fr 1fr 1fr;
+      }
+    "#},
+    );
+
+    // test no unreachable error
+    minify_test(
+      r#"
+    .grid-shorthand-areas {
+      grid: auto / 1fr 3fr;
+      grid-template-areas: ". content .";
+    }
+  "#,
+      ".grid-shorthand-areas{grid:\".content.\"/1fr 3fr}",
+    );
+    minify_test(
+      r#"
+    .grid-shorthand-areas-rows {
+      grid: auto / 1fr 3fr;
+      grid-template-rows: 20px;
+      grid-template-areas: ". content .";
+    }
+  "#,
+      ".grid-shorthand-areas-rows{grid:\".content.\"20px/1fr 3fr}",
+    );
+
+    // test grid-auto-flow: row in grid shorthand
+    test(
+      r#"
+      .test-auto-flow-row-1 {
+        grid: auto-flow   /  1fr 2fr 1fr;
+        grid-template-areas: "  .   one  .  ";
+      }
+    "#,
+      indoc! { r#"
+      .test-auto-flow-row-1 {
+        grid: auto-flow / 1fr 2fr 1fr;
+        grid-template-areas: ". one .";
+      }
+    "#},
+    );
+    test(
+      r#"
+      .test-auto-flow-row-2 {
+        grid: auto-flow   auto   /  100px   100px;
+        grid-template-areas: " one  two ";
+      }
+    "#,
+      indoc! { r#"
+      .test-auto-flow-row-2 {
+        grid: auto-flow / 100px 100px;
+        grid-template-areas: "one two";
+      }
+    "#},
+    );
+    test(
+      r#"
+      .test-auto-flow-dense {
+        grid: dense auto-flow  /  1fr 2fr;
+        grid-template-areas: "  .   content  .  ";
+      }
+    "#,
+      indoc! { r#"
+      .test-auto-flow-dense {
+        grid: auto-flow dense / 1fr 2fr;
+        grid-template-areas: ". content .";
+      }
+    "#},
+    );
+    minify_test(
+      r#"
+      .grid-auto-flow-row-auto-rows {
+        grid: auto-flow 40px / 1fr 90px;
+        grid-template-areas: "a";
+      }
+    "#,
+      ".grid-auto-flow-row-auto-rows{grid:auto-flow 40px/1fr 90px;grid-template-areas:\"a\"}",
+    );
+    minify_test(
+      r#"
+      .grid-auto-flow-row-auto-rows-multiple {
+        grid: auto-flow 40px max-content / 1fr;
+        grid-template-areas: ". a";
+      }
+    "#,
+      ".grid-auto-flow-row-auto-rows-multiple{grid:auto-flow 40px max-content/1fr;grid-template-areas:\".a\"}",
+    );
+
+    // test grid-auto-flow: column in grid shorthand
+    test(
+      r#"
+      .test-auto-flow-column-1 {
+        grid: 300px / auto-flow;
+        grid-template-areas: "  .   one  .  ";
+      }
+    "#,
+      indoc! { r#"
+      .test-auto-flow-column-1 {
+        grid: 300px / auto-flow;
+        grid-template-areas: ". one .";
+      }
+    "#},
+    );
+    test(
+      r#"
+      .test-auto-flow-column-2 {
+        grid: 200px 1fr / auto-flow auto;
+        grid-template-areas: "  .   one  .  ";
+      }
+    "#,
+      indoc! { r#"
+      .test-auto-flow-column-2 {
+        grid: 200px 1fr / auto-flow;
+        grid-template-areas: ". one .";
+      }
+    "#},
+    );
+    test(
+      r#"
+      .test-auto-flow-column-dense {
+        grid: 1fr 2fr / dense auto-flow;
+        grid-template-areas: "  .   content  .  ";
+      }
+    "#,
+      indoc! { r#"
+      .test-auto-flow-column-dense {
+        grid: 1fr 2fr / auto-flow dense;
+        grid-template-areas: ". content .";
+      }
+    "#},
+    );
+    minify_test(
+      r#"
+      .grid-auto-flow-column-auto-rows {
+        grid: 1fr 3fr / auto-flow 40px;
+        grid-template-areas: "a";
+      }
+    "#,
+      ".grid-auto-flow-column-auto-rows{grid:1fr 3fr/auto-flow 40px;grid-template-areas:\"a\"}",
+    );
+    minify_test(
+      r#"
+      .grid-auto-flow-column-auto-rows-multiple {
+        grid: 1fr / auto-flow 40px max-content ;
+        grid-template-areas: ". a";
+      }
+    "#,
+      ".grid-auto-flow-column-auto-rows-multiple{grid:1fr/auto-flow 40px max-content;grid-template-areas:\".a\"}",
+    );
+
     test(
       r#"
       .foo {
@@ -22701,6 +23110,31 @@ mod tests {
     minify_test(
       ".foo { width: attr(data-width type(<length>), 100px); }",
       ".foo{width:attr(data-width type(<length>), 100px)}",
+    );
+
+    minify_test(".foo { width: attr( data-foo    % ); }", ".foo{width:attr(data-foo %)}");
+
+    // <attr-args> = attr( <declaration-value>, <declaration-value>? )
+    // Like var(), a bare comma can be used with nothing following it, indicating that the second <declaration-value> was passed, just as an empty sequence.
+    // Spec: https://drafts.csswg.org/css-values-5/#funcdef-attr
+    minify_test(
+      ".foo { width: attr( data-foo    %, ); }",
+      ".foo{width:attr(data-foo %,)}",
+    );
+
+    minify_test(
+      ".foo { width: attr( data-foo    px ); }",
+      ".foo{width:attr(data-foo px)}",
+    );
+
+    minify_test(
+      ".foo { width: attr(data-foo    number ); }",
+      ".foo{width:attr(data-foo number)}",
+    );
+
+    minify_test(
+      ".foo { width: attr(data-foo    raw-string); }",
+      ".foo{width:attr(data-foo raw-string)}",
     );
 
     // Test attr() function with type() syntax - non-minified (issue with extra spaces)
@@ -28661,6 +29095,17 @@ mod tests {
       "@property --property-name{syntax:\"<length>\";inherits:true;initial-value:25px}",
     );
 
+    minify_test(
+      r#"
+      @property --property-name {
+        syntax: '<string>';
+        inherits: true;
+        initial-value: "hi";
+      }
+    "#,
+      "@property --property-name{syntax:\"<string>\";inherits:true;initial-value:\"hi\"}",
+    );
+
     error_test(
       r#"
       @property --property-name {
@@ -29157,6 +29602,18 @@ mod tests {
 
   #[test]
   fn test_container_queries() {
+    // name only (no condition) - new syntax
+    minify_test(
+      r#"
+      @container foo {
+        .inner {
+          background: green;
+        }
+      }
+    "#,
+      "@container foo{.inner{background:green}}",
+    );
+
     // with name
     minify_test(
       r#"
@@ -29588,6 +30045,19 @@ mod tests {
     error_test(
       "@container unknown(foo) {}",
       ParserError::UnexpectedToken(crate::properties::custom::Token::Function("unknown".into())),
+    );
+
+    // empty container (no name and no condition) should error
+    error_test("@container {}", ParserError::EndOfInput);
+
+    // empty brackets should return a clearer error message
+    error_test("@container () {}", ParserError::EmptyBracketInCondition);
+
+    // invalid condition after a name should error
+    error_test("@container foo () {}", ParserError::EmptyBracketInCondition);
+    error_test(
+      "@container foo bar {}",
+      ParserError::UnexpectedToken(crate::properties::custom::Token::Ident("bar".into())),
     );
 
     error_recovery_test("@container unknown(foo) {}");

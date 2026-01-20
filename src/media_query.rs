@@ -791,6 +791,11 @@ fn parse_paren_block<'t, 'i, P: QueryCondition<'i>>(
   options: &ParserOptions<'_, 'i>,
 ) -> Result<P, ParseError<'i, ParserError<'i>>> {
   input.parse_nested_block(|input| {
+    // Detect empty brackets and provide a clearer error message.
+    if input.is_exhausted() {
+      return Err(input.new_custom_error(ParserError::EmptyBracketInCondition));
+    }
+
     if let Ok(inner) =
       input.try_parse(|i| parse_query_condition(i, flags | QueryConditionFlags::ALLOW_OR, options))
     {
@@ -1888,7 +1893,7 @@ mod tests {
     targets::{Browsers, Targets},
   };
 
-  fn parse(s: &str) -> MediaQuery {
+  fn parse(s: &str) -> MediaQuery<'_> {
     let mut input = ParserInput::new(&s);
     let mut parser = Parser::new(&mut input);
     MediaQuery::parse_with_options(&mut parser, &ParserOptions::default()).unwrap()

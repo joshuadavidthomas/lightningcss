@@ -100,7 +100,6 @@ pub enum Feature {
   ImageSet,
   InOutOfRange,
   IndeterminatePseudo,
-  IsAnimatableSize,
   IsSelector,
   JapaneseFormalListStyleType,
   JapaneseInformalListStyleType,
@@ -144,7 +143,6 @@ pub enum Feature {
   MinFunction,
   ModFunction,
   MongolianListStyleType,
-  MozAvailableSize,
   MyanmarListStyleType,
   Namespaces,
   Nesting,
@@ -193,6 +191,7 @@ pub enum Feature {
   SpaceSeparatedColorNotation,
   SpellingError,
   SquareListStyleType,
+  StatePseudoClass,
   StretchSize,
   StringListStyleType,
   SymbolsListStyleType,
@@ -453,7 +452,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -545,7 +544,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -590,7 +589,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -635,7 +634,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -680,7 +679,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -725,7 +724,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -770,7 +769,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -815,7 +814,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -907,7 +906,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -952,7 +951,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -1022,7 +1021,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -1067,7 +1066,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -1157,7 +1156,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -1202,7 +1201,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -1252,7 +1251,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -1339,7 +1338,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -1384,7 +1383,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -1429,7 +1428,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -1474,7 +1473,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -1519,7 +1518,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -1564,7 +1563,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -1631,7 +1630,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.android {
-          if version < 9175040 {
+          if version < 9371648 {
             return false;
           }
         }
@@ -2217,7 +2216,7 @@ impl Feature {
           }
         }
         if let Some(version) = browsers.samsung {
-          if version < 327680 {
+          if version < 458752 {
             return false;
           }
         }
@@ -2521,6 +2520,16 @@ impl Feature {
             return false;
           }
         }
+        if let Some(version) = browsers.safari {
+          if version < 1704448 {
+            return false;
+          }
+        }
+        if let Some(version) = browsers.ios_saf {
+          if version < 1704448 {
+            return false;
+          }
+        }
         if let Some(version) = browsers.samsung {
           if version < 917504 {
             return false;
@@ -2531,7 +2540,7 @@ impl Feature {
             return false;
           }
         }
-        if browsers.ie.is_some() || browsers.ios_saf.is_some() || browsers.safari.is_some() {
+        if browsers.ie.is_some() {
           return false;
         }
       }
@@ -3567,12 +3576,17 @@ impl Feature {
             return false;
           }
         }
+        if let Some(version) = browsers.samsung {
+          if version < 1900544 {
+            return false;
+          }
+        }
         if let Some(version) = browsers.android {
           if version < 8585216 {
             return false;
           }
         }
-        if browsers.ie.is_some() || browsers.samsung.is_some() {
+        if browsers.ie.is_some() {
           return false;
         }
       }
@@ -3621,7 +3635,7 @@ impl Feature {
           return false;
         }
       }
-      Feature::Picker | Feature::PickerIcon | Feature::Checkmark => {
+      Feature::Picker => {
         if let Some(version) = browsers.chrome {
           if version < 8847360 {
             return false;
@@ -3637,6 +3651,11 @@ impl Feature {
             return false;
           }
         }
+        if let Some(version) = browsers.samsung {
+          if version < 1900544 {
+            return false;
+          }
+        }
         if let Some(version) = browsers.android {
           if version < 8847360 {
             return false;
@@ -3646,7 +3665,40 @@ impl Feature {
           || browsers.ie.is_some()
           || browsers.ios_saf.is_some()
           || browsers.safari.is_some()
-          || browsers.samsung.is_some()
+        {
+          return false;
+        }
+      }
+      Feature::PickerIcon | Feature::Checkmark => {
+        if let Some(version) = browsers.chrome {
+          if version < 8716288 {
+            return false;
+          }
+        }
+        if let Some(version) = browsers.edge {
+          if version < 8716288 {
+            return false;
+          }
+        }
+        if let Some(version) = browsers.opera {
+          if version < 5767168 {
+            return false;
+          }
+        }
+        if let Some(version) = browsers.samsung {
+          if version < 1900544 {
+            return false;
+          }
+        }
+        if let Some(version) = browsers.android {
+          if version < 8716288 {
+            return false;
+          }
+        }
+        if browsers.firefox.is_some()
+          || browsers.ie.is_some()
+          || browsers.ios_saf.is_some()
+          || browsers.safari.is_some()
         {
           return false;
         }
@@ -3688,6 +3740,51 @@ impl Feature {
           }
         }
         if browsers.firefox.is_some() || browsers.ie.is_some() {
+          return false;
+        }
+      }
+      Feature::StatePseudoClass => {
+        if let Some(version) = browsers.chrome {
+          if version < 8192000 {
+            return false;
+          }
+        }
+        if let Some(version) = browsers.edge {
+          if version < 8192000 {
+            return false;
+          }
+        }
+        if let Some(version) = browsers.firefox {
+          if version < 8257536 {
+            return false;
+          }
+        }
+        if let Some(version) = browsers.opera {
+          if version < 5439488 {
+            return false;
+          }
+        }
+        if let Some(version) = browsers.safari {
+          if version < 1115136 {
+            return false;
+          }
+        }
+        if let Some(version) = browsers.ios_saf {
+          if version < 1115136 {
+            return false;
+          }
+        }
+        if let Some(version) = browsers.samsung {
+          if version < 1769472 {
+            return false;
+          }
+        }
+        if let Some(version) = browsers.android {
+          if version < 8192000 {
+            return false;
+          }
+        }
+        if browsers.ie.is_some() {
           return false;
         }
       }
@@ -4072,6 +4169,11 @@ impl Feature {
             return false;
           }
         }
+        if let Some(version) = browsers.firefox {
+          if version < 9633792 {
+            return false;
+          }
+        }
         if let Some(version) = browsers.opera {
           if version < 5177344 {
             return false;
@@ -4097,7 +4199,7 @@ impl Feature {
             return false;
           }
         }
-        if browsers.firefox.is_some() || browsers.ie.is_some() {
+        if browsers.ie.is_some() {
           return false;
         }
       }
@@ -4109,6 +4211,11 @@ impl Feature {
         }
         if let Some(version) = browsers.edge {
           if version < 7274496 {
+            return false;
+          }
+        }
+        if let Some(version) = browsers.firefox {
+          if version < 9633792 {
             return false;
           }
         }
@@ -4137,7 +4244,7 @@ impl Feature {
             return false;
           }
         }
-        if browsers.firefox.is_some() || browsers.ie.is_some() {
+        if browsers.ie.is_some() {
           return false;
         }
       }
@@ -5368,6 +5475,11 @@ impl Feature {
             return false;
           }
         }
+        if let Some(version) = browsers.firefox {
+          if version < 9633792 {
+            return false;
+          }
+        }
         if let Some(version) = browsers.opera {
           if version < 5439488 {
             return false;
@@ -5393,7 +5505,7 @@ impl Feature {
             return false;
           }
         }
-        if browsers.firefox.is_some() || browsers.ie.is_some() {
+        if browsers.ie.is_some() {
           return false;
         }
       }
@@ -5440,53 +5552,6 @@ impl Feature {
         }
         if browsers.ie.is_some() {
           return false;
-        }
-      }
-      Feature::IsAnimatableSize => {
-        if let Some(version) = browsers.chrome {
-          if version < 1703936 {
-            return false;
-          }
-        }
-        if let Some(version) = browsers.edge {
-          if version < 786432 {
-            return false;
-          }
-        }
-        if let Some(version) = browsers.firefox {
-          if version < 1048576 {
-            return false;
-          }
-        }
-        if let Some(version) = browsers.ie {
-          if version < 720896 {
-            return false;
-          }
-        }
-        if let Some(version) = browsers.opera {
-          if version < 917504 {
-            return false;
-          }
-        }
-        if let Some(version) = browsers.safari {
-          if version < 458752 {
-            return false;
-          }
-        }
-        if let Some(version) = browsers.ios_saf {
-          if version < 458752 {
-            return false;
-          }
-        }
-        if let Some(version) = browsers.samsung {
-          if version < 66816 {
-            return false;
-          }
-        }
-        if let Some(version) = browsers.android {
-          if version < 263168 {
-            return false;
-          }
         }
       }
       Feature::MaxContentSize => {
@@ -5609,25 +5674,12 @@ impl Feature {
           return false;
         }
       }
-      Feature::MozAvailableSize => {
+      Feature::WebkitFillAvailableSize => {
         if let Some(version) = browsers.firefox {
-          if version < 262144 {
+          if version < 9568256 {
             return false;
           }
         }
-        if browsers.android.is_some()
-          || browsers.chrome.is_some()
-          || browsers.edge.is_some()
-          || browsers.ie.is_some()
-          || browsers.ios_saf.is_some()
-          || browsers.opera.is_some()
-          || browsers.safari.is_some()
-          || browsers.samsung.is_some()
-        {
-          return false;
-        }
-      }
-      Feature::WebkitFillAvailableSize => {
         if let Some(version) = browsers.safari {
           if version < 458752 {
             return false;
@@ -5646,7 +5698,6 @@ impl Feature {
         if browsers.android.is_some()
           || browsers.chrome.is_some()
           || browsers.edge.is_some()
-          || browsers.firefox.is_some()
           || browsers.ie.is_some()
           || browsers.opera.is_some()
         {
@@ -5686,63 +5737,90 @@ impl Feature {
       if self.is_compatible(browsers) {
         return true;
       }
-      browsers.android = None;
+      #[allow(unused_assignments)]
+      {
+        browsers.android = None;
+      }
     }
     if targets.chrome.is_some() {
       browsers.chrome = targets.chrome;
       if self.is_compatible(browsers) {
         return true;
       }
-      browsers.chrome = None;
+      #[allow(unused_assignments)]
+      {
+        browsers.chrome = None;
+      }
     }
     if targets.edge.is_some() {
       browsers.edge = targets.edge;
       if self.is_compatible(browsers) {
         return true;
       }
-      browsers.edge = None;
+      #[allow(unused_assignments)]
+      {
+        browsers.edge = None;
+      }
     }
     if targets.firefox.is_some() {
       browsers.firefox = targets.firefox;
       if self.is_compatible(browsers) {
         return true;
       }
-      browsers.firefox = None;
+      #[allow(unused_assignments)]
+      {
+        browsers.firefox = None;
+      }
     }
     if targets.ie.is_some() {
       browsers.ie = targets.ie;
       if self.is_compatible(browsers) {
         return true;
       }
-      browsers.ie = None;
+      #[allow(unused_assignments)]
+      {
+        browsers.ie = None;
+      }
     }
     if targets.ios_saf.is_some() {
       browsers.ios_saf = targets.ios_saf;
       if self.is_compatible(browsers) {
         return true;
       }
-      browsers.ios_saf = None;
+      #[allow(unused_assignments)]
+      {
+        browsers.ios_saf = None;
+      }
     }
     if targets.opera.is_some() {
       browsers.opera = targets.opera;
       if self.is_compatible(browsers) {
         return true;
       }
-      browsers.opera = None;
+      #[allow(unused_assignments)]
+      {
+        browsers.opera = None;
+      }
     }
     if targets.safari.is_some() {
       browsers.safari = targets.safari;
       if self.is_compatible(browsers) {
         return true;
       }
-      browsers.safari = None;
+      #[allow(unused_assignments)]
+      {
+        browsers.safari = None;
+      }
     }
     if targets.samsung.is_some() {
       browsers.samsung = targets.samsung;
       if self.is_compatible(browsers) {
         return true;
       }
-      browsers.samsung = None;
+      #[allow(unused_assignments)]
+      {
+        browsers.samsung = None;
+      }
     }
 
     false
