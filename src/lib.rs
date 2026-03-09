@@ -48,6 +48,9 @@ pub mod visitor;
 mod serialization;
 
 #[cfg(test)]
+mod test_helpers;
+
+#[cfg(test)]
 mod tests {
   use crate::css_modules::{CssModuleExport, CssModuleExports, CssModuleReference, CssModuleReferences};
   use crate::dependencies::Dependency;
@@ -58,6 +61,7 @@ mod tests {
   use crate::rules::CssRule;
   use crate::rules::Location;
   use crate::stylesheet::*;
+  use crate::test_helpers::panic_with_test_error;
   use crate::targets::{Browsers, Features, Targets};
   use crate::traits::{Parse, ToCss};
   use crate::values::color::CssColor;
@@ -68,86 +72,130 @@ mod tests {
   use std::collections::HashMap;
   use std::sync::{Arc, RwLock};
 
+  #[track_caller]
   fn test(source: &str, expected: &str) {
     test_with_options(source, expected, ParserOptions::default())
   }
 
+  #[track_caller]
   fn test_with_options<'i, 'o>(source: &'i str, expected: &'i str, options: ParserOptions<'o, 'i>) {
-    let mut stylesheet = StyleSheet::parse(&source, options).unwrap();
-    stylesheet.minify(MinifyOptions::default()).unwrap();
-    let res = stylesheet.to_css(PrinterOptions::default()).unwrap();
+    let mut stylesheet = match StyleSheet::parse(&source, options) {
+      Ok(stylesheet) => stylesheet,
+      Err(e) => panic_with_test_error("test_with_options", "parse", source, e),
+    };
+    if let Err(e) = stylesheet.minify(MinifyOptions::default()) {
+      panic_with_test_error("test_with_options", "minify", source, e);
+    }
+    let res = match stylesheet.to_css(PrinterOptions::default()) {
+      Ok(res) => res,
+      Err(e) => panic_with_test_error("test_with_options", "print", source, e),
+    };
     assert_eq!(res.code, expected);
   }
 
+  #[track_caller]
   fn test_with_printer_options<'i, 'o>(source: &'i str, expected: &'i str, options: PrinterOptions<'o>) {
-    let mut stylesheet = StyleSheet::parse(&source, ParserOptions::default()).unwrap();
-    stylesheet.minify(MinifyOptions::default()).unwrap();
-    let res = stylesheet.to_css(options).unwrap();
+    let mut stylesheet = match StyleSheet::parse(&source, ParserOptions::default()) {
+      Ok(stylesheet) => stylesheet,
+      Err(e) => panic_with_test_error("test_with_printer_options", "parse", source, e),
+    };
+    if let Err(e) = stylesheet.minify(MinifyOptions::default()) {
+      panic_with_test_error("test_with_printer_options", "minify", source, e);
+    }
+    let res = match stylesheet.to_css(options) {
+      Ok(res) => res,
+      Err(e) => panic_with_test_error("test_with_printer_options", "print", source, e),
+    };
     assert_eq!(res.code, expected);
   }
 
+  #[track_caller]
   fn minify_test(source: &str, expected: &str) {
     minify_test_with_options(source, expected, ParserOptions::default())
   }
 
   #[track_caller]
   fn minify_test_with_options<'i, 'o>(source: &'i str, expected: &'i str, options: ParserOptions<'o, 'i>) {
-    let mut stylesheet = StyleSheet::parse(&source, options.clone()).unwrap();
-    stylesheet.minify(MinifyOptions::default()).unwrap();
-    let res = stylesheet
-      .to_css(PrinterOptions {
-        minify: true,
-        ..PrinterOptions::default()
-      })
-      .unwrap();
+    let mut stylesheet = match StyleSheet::parse(&source, options) {
+      Ok(stylesheet) => stylesheet,
+      Err(e) => panic_with_test_error("minify_test_with_options", "parse", source, e),
+    };
+    if let Err(e) = stylesheet.minify(MinifyOptions::default()) {
+      panic_with_test_error("minify_test_with_options", "minify", source, e);
+    }
+    let res = match stylesheet.to_css(PrinterOptions {
+      minify: true,
+      ..PrinterOptions::default()
+    }) {
+      Ok(res) => res,
+      Err(e) => panic_with_test_error("minify_test_with_options", "print", source, e),
+    };
     assert_eq!(res.code, expected);
   }
 
+  #[track_caller]
   fn minify_error_test_with_options<'i, 'o>(
     source: &'i str,
     error: MinifyErrorKind,
     options: ParserOptions<'o, 'i>,
   ) {
-    let mut stylesheet = StyleSheet::parse(&source, options.clone()).unwrap();
+    let mut stylesheet = match StyleSheet::parse(&source, options) {
+      Ok(stylesheet) => stylesheet,
+      Err(e) => panic_with_test_error("minify_error_test_with_options", "parse", source, e),
+    };
     match stylesheet.minify(MinifyOptions::default()) {
       Err(e) => assert_eq!(e.kind, error),
-      _ => unreachable!(),
+      Ok(()) => panic!(
+        "minify_error_test_with_options: expected minify error {:?}, but minification succeeded.\nsource:\n{source}",
+        error
+      ),
     }
   }
 
+  #[track_caller]
   fn prefix_test(source: &str, expected: &str, targets: Browsers) {
-    let mut stylesheet = StyleSheet::parse(&source, ParserOptions::default()).unwrap();
-    stylesheet
-      .minify(MinifyOptions {
-        targets: targets.into(),
-        ..MinifyOptions::default()
-      })
-      .unwrap();
-    let res = stylesheet
-      .to_css(PrinterOptions {
-        targets: targets.into(),
-        ..PrinterOptions::default()
-      })
-      .unwrap();
+    let mut stylesheet = match StyleSheet::parse(&source, ParserOptions::default()) {
+      Ok(stylesheet) => stylesheet,
+      Err(e) => panic_with_test_error("prefix_test", "parse", source, e),
+    };
+    if let Err(e) = stylesheet.minify(MinifyOptions {
+      targets: targets.into(),
+      ..MinifyOptions::default()
+    }) {
+      panic_with_test_error("prefix_test", "minify", source, e);
+    }
+    let res = match stylesheet.to_css(PrinterOptions {
+      targets: targets.into(),
+      ..PrinterOptions::default()
+    }) {
+      Ok(res) => res,
+      Err(e) => panic_with_test_error("prefix_test", "print", source, e),
+    };
     assert_eq!(res.code, expected);
   }
 
+  #[track_caller]
   fn attr_test(source: &str, expected: &str, minify: bool, targets: Option<Browsers>) {
-    let mut attr = StyleAttribute::parse(source, ParserOptions::default()).unwrap();
+    let mut attr = match StyleAttribute::parse(source, ParserOptions::default()) {
+      Ok(attr) => attr,
+      Err(e) => panic_with_test_error("attr_test", "parse", source, e),
+    };
     attr.minify(MinifyOptions {
       targets: targets.into(),
       ..MinifyOptions::default()
     });
-    let res = attr
-      .to_css(PrinterOptions {
-        targets: targets.into(),
-        minify,
-        ..PrinterOptions::default()
-      })
-      .unwrap();
+    let res = match attr.to_css(PrinterOptions {
+      targets: targets.into(),
+      minify,
+      ..PrinterOptions::default()
+    }) {
+      Ok(res) => res,
+      Err(e) => panic_with_test_error("attr_test", "print", source, e),
+    };
     assert_eq!(res.code, expected);
   }
 
+  #[track_caller]
   fn nesting_test(source: &str, expected: &str) {
     nesting_test_with_targets(
       source,
@@ -160,30 +208,45 @@ mod tests {
     );
   }
 
+  #[track_caller]
   fn nesting_test_with_targets(source: &str, expected: &str, targets: Targets) {
-    let mut stylesheet = StyleSheet::parse(&source, ParserOptions::default()).unwrap();
-    stylesheet
-      .minify(MinifyOptions {
-        targets,
-        ..MinifyOptions::default()
-      })
-      .unwrap();
-    let res = stylesheet
-      .to_css(PrinterOptions {
-        targets,
-        ..PrinterOptions::default()
-      })
-      .unwrap();
+    let mut stylesheet = match StyleSheet::parse(&source, ParserOptions::default()) {
+      Ok(stylesheet) => stylesheet,
+      Err(e) => panic_with_test_error("nesting_test_with_targets", "parse", source, e),
+    };
+    if let Err(e) = stylesheet.minify(MinifyOptions {
+      targets,
+      ..MinifyOptions::default()
+    }) {
+      panic_with_test_error("nesting_test_with_targets", "minify", source, e);
+    }
+    let res = match stylesheet.to_css(PrinterOptions {
+      targets,
+      ..PrinterOptions::default()
+    }) {
+      Ok(res) => res,
+      Err(e) => panic_with_test_error("nesting_test_with_targets", "print", source, e),
+    };
     assert_eq!(res.code, expected);
   }
 
+  #[track_caller]
   fn nesting_test_no_targets(source: &str, expected: &str) {
-    let mut stylesheet = StyleSheet::parse(&source, ParserOptions::default()).unwrap();
-    stylesheet.minify(MinifyOptions::default()).unwrap();
-    let res = stylesheet.to_css(PrinterOptions::default()).unwrap();
+    let mut stylesheet = match StyleSheet::parse(&source, ParserOptions::default()) {
+      Ok(stylesheet) => stylesheet,
+      Err(e) => panic_with_test_error("nesting_test_no_targets", "parse", source, e),
+    };
+    if let Err(e) = stylesheet.minify(MinifyOptions::default()) {
+      panic_with_test_error("nesting_test_no_targets", "minify", source, e);
+    }
+    let res = match stylesheet.to_css(PrinterOptions::default()) {
+      Ok(res) => res,
+      Err(e) => panic_with_test_error("nesting_test_no_targets", "print", source, e),
+    };
     assert_eq!(res.code, expected);
   }
 
+  #[track_caller]
   fn css_modules_test<'i>(
     source: &'i str,
     expected: &str,
@@ -192,47 +255,64 @@ mod tests {
     config: crate::css_modules::Config<'i>,
     minify: bool,
   ) {
-    let mut stylesheet = StyleSheet::parse(
+    let mut stylesheet = match StyleSheet::parse(
       &source,
       ParserOptions {
         filename: "test.css".into(),
         css_modules: Some(config),
         ..ParserOptions::default()
       },
-    )
-    .unwrap();
-    stylesheet.minify(MinifyOptions::default()).unwrap();
-    let res = stylesheet
-      .to_css(PrinterOptions {
-        minify,
-        ..Default::default()
-      })
-      .unwrap();
+    ) {
+      Ok(stylesheet) => stylesheet,
+      Err(e) => panic_with_test_error("css_modules_test", "parse", source, e),
+    };
+    if let Err(e) = stylesheet.minify(MinifyOptions::default()) {
+      panic_with_test_error("css_modules_test", "minify", source, e);
+    }
+    let res = match stylesheet.to_css(PrinterOptions {
+      minify,
+      ..Default::default()
+    }) {
+      Ok(res) => res,
+      Err(e) => panic_with_test_error("css_modules_test", "print", source, e),
+    };
     assert_eq!(res.code, expected);
-    assert_eq!(res.exports.unwrap(), expected_exports);
-    assert_eq!(res.references.unwrap(), expected_references);
+    match res.exports {
+      Some(exports) => assert_eq!(exports, expected_exports),
+      None => panic!("css_modules_test: expected CSS module exports, but got None.\nsource:\n{source}"),
+    }
+    match res.references {
+      Some(references) => assert_eq!(references, expected_references),
+      None => panic!("css_modules_test: expected CSS module references, but got None.\nsource:\n{source}"),
+    }
   }
 
+  #[track_caller]
   fn custom_media_test(source: &str, expected: &str) {
-    let mut stylesheet = StyleSheet::parse(
+    let mut stylesheet = match StyleSheet::parse(
       &source,
       ParserOptions {
         flags: ParserFlags::CUSTOM_MEDIA,
         ..ParserOptions::default()
       },
-    )
-    .unwrap();
-    stylesheet
-      .minify(MinifyOptions {
-        targets: Browsers {
-          chrome: Some(95 << 16),
-          ..Browsers::default()
-        }
-        .into(),
-        ..MinifyOptions::default()
-      })
-      .unwrap();
-    let res = stylesheet.to_css(PrinterOptions::default()).unwrap();
+    ) {
+      Ok(stylesheet) => stylesheet,
+      Err(e) => panic_with_test_error("custom_media_test", "parse", source, e),
+    };
+    if let Err(e) = stylesheet.minify(MinifyOptions {
+      targets: Browsers {
+        chrome: Some(95 << 16),
+        ..Browsers::default()
+      }
+      .into(),
+      ..MinifyOptions::default()
+    }) {
+      panic_with_test_error("custom_media_test", "minify", source, e);
+    }
+    let res = match stylesheet.to_css(PrinterOptions::default()) {
+      Ok(res) => res,
+      Err(e) => panic_with_test_error("custom_media_test", "print", source, e),
+    };
     assert_eq!(res.code, expected);
   }
 
@@ -260,7 +340,14 @@ mod tests {
         Err(e) => unreachable!("parser error should be recovered, but got {e:?}"),
       }
     }
-    Arc::into_inner(warnings).unwrap().into_inner().unwrap()
+    let warnings = match Arc::into_inner(warnings) {
+      Some(warnings) => warnings,
+      None => panic!("error_recovery_test: expected a single Arc owner for warnings"),
+    };
+    match warnings.into_inner() {
+      Ok(warnings) => warnings,
+      Err(e) => panic!("error_recovery_test: warnings lock is poisoned: {e}"),
+    }
   }
 
   fn css_modules_error_test(source: &str, error: ParserError) {
@@ -12714,6 +12801,57 @@ mod tests {
     minify_test(".foo { transform: scale3d(1, 2, 1)", ".foo{transform:scaleY(2)}");
     minify_test(".foo { transform: scale3d(1, 1, 2)", ".foo{transform:scaleZ(2)}");
     minify_test(".foo { transform: scale3d(2, 2, 1)", ".foo{transform:scale(2)}");
+
+    // transform: scale(), Convert <percentage> to <number>
+    test(
+      ".foo { transform: scale3d(50%, 1, 200%) }",
+      indoc! {r#"
+      .foo {
+        transform: scale3d(.5, 1, 2);
+      }
+      "#},
+    );
+    minify_test(".foo { transform: scale(1%) }", ".foo{transform:scale(.01)}");
+    minify_test(".foo { transform: scale(0%) }", ".foo{transform:scale(0)}");
+    minify_test(".foo { transform: scale(0.0%) }", ".foo{transform:scale(0)}");
+    minify_test(".foo { transform: scale(-0%) }", ".foo{transform:scale(0)}");
+    minify_test(".foo { transform: scale(-0) }", ".foo{transform:scale(0)}");
+    minify_test(".foo { transform: scale(-0.0) }", ".foo{transform:scale(0)}");
+    minify_test(".foo { transform: scale(100%) }", ".foo{transform:scale(1)}");
+    minify_test(".foo { transform: scale(-100%) }", ".foo{transform:scale(-1)}");
+    minify_test(".foo { transform: scale(68%) }", ".foo{transform:scale(.68)}");
+    minify_test(".foo { transform: scale(5.96%) }", ".foo{transform:scale(.0596)}");
+    // Match WPT coverage for repeated and multi-value percentages.
+    minify_test(".foo { transform: scale(100%, 100%) }", ".foo{transform:scale(1)}");
+    minify_test(".foo { transform: scale3d(100%, 100%, 1) }", ".foo{transform:scale(1)}");
+    minify_test(".foo { transform: scale(-100%, -100%) }", ".foo{transform:scale(-1)}");
+    minify_test(".foo { transform: scale3d(-100%, -100%, 1) }", ".foo{transform:scale(-1)}");
+    minify_test(".foo { transform: scale(100%, 200%) }", ".foo{transform:scaleY(2)}");
+    minify_test(".foo { transform: scale3d(100%, 200%, 1) }", ".foo{transform:scaleY(2)}");
+    minify_test(".foo { transform: scale3d(100%, 100%, 0%) }", ".foo{transform:scaleZ(0)}");
+    minify_test(".foo { transform: scale3d(100%, 100%, 100%) }", ".foo{transform:scale(1)}");
+    minify_test(".foo { transform: scale3d(-0%, -0%, -0%) }", ".foo{transform:scale3d(0,0,0)}");
+    // Additional edge cases: mixed inputs and computed percentages.
+    minify_test(".foo { transform: scale(2, 100%) }", ".foo{transform:scaleX(2)}");
+    minify_test(".foo { transform: scale(2, -50%) }", ".foo{transform:scale(2,-.5)}");
+    minify_test(".foo { transform: scale(-90%, -1) }", ".foo{transform:scale(-.9,-1)}");
+    minify_test(".foo { transform: scale(calc(10% + 20%)) }", ".foo{transform:scale(.3)}");
+    minify_test(".foo { transform: scale(calc(150% - 50%), 200%) }", ".foo{transform:scaleY(2)}");
+    minify_test(".foo { transform: scale(200%, calc(50% - 80%)) }", ".foo{transform:scale(2,-.3)}");
+    // TODO: For infinite decimals, please do not attempt to resolve calc
+    // Expected: calc(1 / 3)
+    // https://github.com/parcel-bundler/lightningcss/issues/12
+    minify_test(".foo { transform: scale(calc(100% / 3)) }", ".foo{transform:scale(.333333)}");
+    // Transform::ScaleX/Y/Z
+    minify_test(".foo { transform: scaleX(10%) }", ".foo{transform:scaleX(.1)}");
+    minify_test(".foo { transform: scaleY(20%) }", ".foo{transform:scaleY(.2)}");
+    minify_test(".foo { transform: scaleZ(30%) }", ".foo{transform:scaleZ(.3)}");
+    minify_test(".foo { transform: scaleX(0%) }", ".foo{transform:scaleX(0)}");
+    minify_test(".foo { transform: scaleX(-0%) }", ".foo{transform:scaleX(0)}");
+    minify_test(".foo { transform: scaleX(calc(10% + 20%)) }", ".foo{transform:scaleX(.3)}");
+    minify_test(".foo { transform: scaleX(calc(180% - 20%)) }", ".foo{transform:scaleX(1.6)}");
+    minify_test(".foo { transform: scaleX(calc(50% - 80%)) }", ".foo{transform:scaleX(-.3)}");
+
     minify_test(".foo { transform: rotate(20deg)", ".foo{transform:rotate(20deg)}");
     minify_test(".foo { transform: rotateX(20deg)", ".foo{transform:rotateX(20deg)}");
     minify_test(".foo { transform: rotateY(20deg)", ".foo{transform:rotateY(20deg)}");
@@ -12851,7 +12989,6 @@ mod tests {
       ".foo{transform:rotate(calc(10deg + var(--test)))}",
       ".foo{transform:rotate(calc(10deg + var(--test)))}",
     );
-    minify_test(".foo { transform: scale(calc(10% + 20%))", ".foo{transform:scale(.3)}");
     minify_test(".foo { transform: scale(calc(.1 + .2))", ".foo{transform:scale(.3)}");
 
     minify_test(
@@ -12896,6 +13033,81 @@ mod tests {
     minify_test(".foo { scale: 1 0 }", ".foo{scale:1 0}");
     minify_test(".foo { scale: 1 0 1 }", ".foo{scale:1 0}");
     minify_test(".foo { scale: 1 0 0 }", ".foo{scale:1 0 0}");
+
+    // scale, Convert <percentage> to <number>
+    test(
+      ".foo { scale: 50% 1 200% }",
+      indoc! {r#"
+      .foo {
+        scale: .5 1 2;
+      }
+      "#},
+    );
+    minify_test(".foo { scale: 1% }", ".foo{scale:.01}");
+    minify_test(".foo { scale: 0% }", ".foo{scale:0}");
+    minify_test(".foo { scale: 0.0% }", ".foo{scale:0}");
+    minify_test(".foo { scale: -0% }", ".foo{scale:0}");
+    minify_test(".foo { scale: -0 }", ".foo{scale:0}");
+    minify_test(".foo { scale: -0.0 }", ".foo{scale:0}");
+    minify_test(".foo { scale: 100% }", ".foo{scale:1}");
+    minify_test(".foo { scale: -100% }", ".foo{scale:-1}");
+    minify_test(".foo { scale: 68% }", ".foo{scale:.68}");
+    minify_test(".foo { scale: 5.96% }", ".foo{scale:.0596}");
+    // Match WPT coverage for repeated and multi-value percentages.
+    minify_test(".foo { scale: 100% 100% }", ".foo{scale:1}");
+    minify_test(".foo { scale: 100% 100% 1 }", ".foo{scale:1}");
+    minify_test(".foo { scale: -100% -100% }", ".foo{scale:-1}");
+    minify_test(".foo { scale: -100% -100% 1 }", ".foo{scale:-1}");
+    minify_test(".foo { scale: 100% 200% }", ".foo{scale:1 2}");
+    minify_test(".foo { scale: 100% 200% 1 }", ".foo{scale:1 2}");
+    minify_test(".foo { scale: 100% 100% 0% }", ".foo{scale:1 1 0}");
+    minify_test(".foo { scale: 100% 100% 100% }", ".foo{scale:1}");
+    minify_test(".foo { scale: -0% -0% -0% }", ".foo{scale:0 0 0}");
+    // Additional edge cases: mixed inputs and computed percentages.
+    minify_test(".foo { scale: 2 100% }", ".foo{scale:2 1}");
+    minify_test(".foo { scale: 2 -50% }", ".foo{scale:2 -.5}");
+    minify_test(".foo { scale: -90% -1 }", ".foo{scale:-.9 -1}");
+    minify_test(".foo { scale: calc(10% + 20%) }", ".foo{scale:.3}");
+    minify_test(".foo { scale: calc(150% - 50%) 200% }", ".foo{scale:1 2}");
+    minify_test(".foo { scale: 200% calc(50% - 80%) }", ".foo{scale:2 -.3}");
+    // TODO: For infinite decimals, please do not attempt to resolve calc
+    // Expected: calc(1 / 3)
+    // https://github.com/parcel-bundler/lightningcss/issues/12
+    minify_test(".foo { scale: calc(100% / 3) }", ".foo{scale:.333333}");
+
+    assert_eq!(
+      Property::Scale(crate::properties::transform::Scale::XYZ {
+        x: crate::values::percentage::NumberOrPercentage::Percentage(crate::values::percentage::Percentage(0.5)),
+        y: crate::values::percentage::NumberOrPercentage::Percentage(crate::values::percentage::Percentage(2.0)),
+        z: crate::values::percentage::NumberOrPercentage::Percentage(crate::values::percentage::Percentage(1.0)),
+      })
+      .to_css_string(
+        false,
+        PrinterOptions {
+          minify: true,
+          ..PrinterOptions::default()
+        },
+      )
+      .unwrap(),
+      "scale:.5 2"
+    );
+    assert_eq!(
+      Property::Transform(
+        crate::properties::transform::TransformList(vec![crate::properties::transform::Transform::ScaleX(
+          crate::values::percentage::NumberOrPercentage::Percentage(crate::values::percentage::Percentage(0.1)),
+        )]),
+        VendorPrefix::None,
+      )
+      .to_css_string(
+        false,
+        PrinterOptions {
+          minify: true,
+          ..PrinterOptions::default()
+        },
+      )
+      .unwrap(),
+      "transform:scaleX(.1)"
+    );
 
     // TODO: Re-enable with a better solution
     //       See: https://github.com/parcel-bundler/lightningcss/issues/288
