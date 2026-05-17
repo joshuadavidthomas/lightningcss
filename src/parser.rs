@@ -8,6 +8,7 @@ use crate::rules::font_feature_values::FontFeatureValuesRule;
 use crate::rules::font_palette_values::FontPaletteValuesRule;
 use crate::rules::layer::{LayerBlockRule, LayerStatementRule};
 use crate::rules::nesting::NestedDeclarationsRule;
+use crate::rules::position_try::PositionTryRule;
 use crate::rules::property::PropertyRule;
 use crate::rules::scope::ScopeRule;
 use crate::rules::starting_style::StartingStyleRule;
@@ -233,6 +234,8 @@ pub enum AtRulePrelude<'i, T> {
   Layer(Vec<LayerName<'i>>),
   /// An @property prelude.
   Property(DashedIdent<'i>),
+  /// An @position-try prelude.
+  PositionTry(DashedIdent<'i>),
   /// A @container prelude.
   /// Spec: https://drafts.csswg.org/css-conditional-5/#container-rule
   /// @container [ <container-name>? <container-query>? ]!
@@ -275,6 +278,7 @@ impl<'i, T> AtRulePrelude<'i, T> {
       | Self::Keyframes(..)
       | Self::Page(..)
       | Self::Property(..)
+      | Self::PositionTry(..)
       | Self::Import(..)
       | Self::CustomMedia(..)
       | Self::Viewport(..)
@@ -727,6 +731,11 @@ impl<'a, 'b, 'i, T: crate::traits::AtRuleParser<'i>> AtRuleParser<'i> for Nested
         return Ok(AtRulePrelude::Property(name))
       },
 
+      "position-try" => {
+        let name = DashedIdent::parse(input)?;
+        return Ok(AtRulePrelude::PositionTry(name))
+      },
+
       _ => parse_custom_at_rule_prelude(&name, input, self.options, self.at_rule_parser)?
     };
 
@@ -901,6 +910,14 @@ impl<'a, 'b, 'i, T: crate::traits::AtRuleParser<'i>> AtRuleParser<'i> for Nested
       }
       AtRulePrelude::Property(name) => {
         self.rules.0.push(CssRule::Property(PropertyRule::parse(name, input, loc)?));
+        Ok(())
+      }
+      AtRulePrelude::PositionTry(name) => {
+        self.rules.0.push(CssRule::PositionTry(PositionTryRule {
+          name,
+          declarations: DeclarationBlock::parse(input, self.options)?,
+          loc,
+        }));
         Ok(())
       }
       AtRulePrelude::Import(..)
