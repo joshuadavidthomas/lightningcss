@@ -258,7 +258,7 @@ impl<'i> Visitor<'i, AtRule<'i>> for JsVisitor {
     self.types
   }
 
-  fn visit_stylesheet<'o>(&mut self, stylesheet: &mut StyleSheet<'i, 'o, AtRule<'i>>) -> Result<(), Self::Error> {
+  fn visit_stylesheet<'o>(&mut self, stylesheet: &mut StyleSheet<'i, AtRule<'i>>) -> Result<(), Self::Error> {
     if self.types.contains(VisitTypes::RULES) {
       let env = self.env;
       let visit_stylesheet = self.visit_stylesheet.get::<JsFunction>(&env);

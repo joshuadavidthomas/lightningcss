@@ -85,12 +85,12 @@ impl<'i> SelectorImpl<'i> for Selectors {
   }
 }
 
-pub(crate) struct SelectorParser<'a, 'o, 'i> {
+pub(crate) struct SelectorParser<'a, 'i> {
   pub is_nesting_allowed: bool,
-  pub options: &'a ParserOptions<'o, 'i>,
+  pub options: &'a ParserOptions<'i>,
 }
 
-impl<'a, 'o, 'i> parcel_selectors::parser::Parser<'i> for SelectorParser<'a, 'o, 'i> {
+impl<'a, 'i> parcel_selectors::parser::Parser<'i> for SelectorParser<'a, 'i> {
   type Impl = Selectors;
   type Error = ParserError<'i>;
 
@@ -2286,7 +2286,7 @@ impl<'i, T: Visit<'i, T, V>, V: ?Sized + Visitor<'i, T>> Visit<'i, T, V> for Sel
 impl<'i> ParseWithOptions<'i> for Selector<'i> {
   fn parse_with_options<'t>(
     input: &mut Parser<'i, 't>,
-    options: &ParserOptions<'_, 'i>,
+    options: &ParserOptions<'i>,
   ) -> Result<Self, ParseError<'i, ParserError<'i>>> {
     Selector::parse(
       &SelectorParser {
@@ -2301,7 +2301,7 @@ impl<'i> ParseWithOptions<'i> for Selector<'i> {
 impl<'i> ParseWithOptions<'i> for SelectorList<'i> {
   fn parse_with_options<'t>(
     input: &mut Parser<'i, 't>,
-    options: &ParserOptions<'_, 'i>,
+    options: &ParserOptions<'i>,
   ) -> Result<Self, ParseError<'i, ParserError<'i>>> {
     SelectorList::parse(
       &SelectorParser {

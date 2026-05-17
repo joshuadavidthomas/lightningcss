@@ -411,7 +411,7 @@ impl<'i> CssRule<'i, DefaultAtRule> {
   /// Parse a single rule.
   pub fn parse<'t>(
     input: &mut Parser<'i, 't>,
-    options: &ParserOptions<'_, 'i>,
+    options: &ParserOptions<'i>,
   ) -> Result<Self, ParseError<'i, ParserError<'i>>> {
     Self::parse_with(input, options, &mut DefaultAtRuleParser)
   }
@@ -419,7 +419,7 @@ impl<'i> CssRule<'i, DefaultAtRule> {
   /// Parse a single rule from a string.
   pub fn parse_string(
     input: &'i str,
-    options: ParserOptions<'_, 'i>,
+    options: ParserOptions<'i>,
   ) -> Result<Self, ParseError<'i, ParserError<'i>>> {
     Self::parse_string_with(input, options, &mut DefaultAtRuleParser)
   }
@@ -429,7 +429,7 @@ impl<'i, T> CssRule<'i, T> {
   /// Parse a single rule.
   pub fn parse_with<'t, P: AtRuleParser<'i, AtRule = T>>(
     input: &mut Parser<'i, 't>,
-    options: &ParserOptions<'_, 'i>,
+    options: &ParserOptions<'i>,
     at_rule_parser: &mut P,
   ) -> Result<Self, ParseError<'i, ParserError<'i>>> {
     let mut rules = CssRuleList(Vec::new());
@@ -440,7 +440,7 @@ impl<'i, T> CssRule<'i, T> {
   /// Parse a single rule from a string.
   pub fn parse_string_with<P: AtRuleParser<'i, AtRule = T>>(
     input: &'i str,
-    options: ParserOptions<'_, 'i>,
+    options: ParserOptions<'i>,
     at_rule_parser: &mut P,
   ) -> Result<Self, ParseError<'i, ParserError<'i>>> {
     let mut input = ParserInput::new(input);
@@ -462,7 +462,7 @@ impl<'i> CssRuleList<'i, DefaultAtRule> {
   /// Parse a rule list.
   pub fn parse<'t>(
     input: &mut Parser<'i, 't>,
-    options: &ParserOptions<'_, 'i>,
+    options: &ParserOptions<'i>,
   ) -> Result<Self, ParseError<'i, ParserError<'i>>> {
     Self::parse_with(input, options, &mut DefaultAtRuleParser)
   }
@@ -471,7 +471,7 @@ impl<'i> CssRuleList<'i, DefaultAtRule> {
   /// Resulting declarations are returned in a nested style rule.
   pub fn parse_style_block<'t>(
     input: &mut Parser<'i, 't>,
-    options: &ParserOptions<'_, 'i>,
+    options: &ParserOptions<'i>,
     is_nested: bool,
   ) -> Result<Self, ParseError<'i, ParserError<'i>>> {
     Self::parse_style_block_with(input, options, &mut DefaultAtRuleParser, is_nested)
@@ -482,7 +482,7 @@ impl<'i, T> CssRuleList<'i, T> {
   /// Parse a rule list with a custom at rule parser.
   pub fn parse_with<'t, P: AtRuleParser<'i, AtRule = T>>(
     input: &mut Parser<'i, 't>,
-    options: &ParserOptions<'_, 'i>,
+    options: &ParserOptions<'i>,
     at_rule_parser: &mut P,
   ) -> Result<Self, ParseError<'i, ParserError<'i>>> {
     parse_rule_list(input, options, at_rule_parser)
@@ -492,7 +492,7 @@ impl<'i, T> CssRuleList<'i, T> {
   /// Resulting declarations are returned in a nested style rule.
   pub fn parse_style_block_with<'t, P: AtRuleParser<'i, AtRule = T>>(
     input: &mut Parser<'i, 't>,
-    options: &ParserOptions<'_, 'i>,
+    options: &ParserOptions<'i>,
     at_rule_parser: &mut P,
     is_nested: bool,
   ) -> Result<Self, ParseError<'i, ParserError<'i>>> {
