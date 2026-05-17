@@ -116,15 +116,30 @@ mod tests {
 
   #[track_caller]
   fn minify_test_with_options<'i>(source: &'i str, expected: &'i str, options: ParserOptions<'i>) {
+    minify_test_with_options_and_browsers(source, expected, options, None)
+  }
+
+  #[track_caller]
+  fn minify_test_with_options_and_browsers<'i>(
+    source: &'i str,
+    expected: &'i str,
+    options: ParserOptions<'i>,
+    browsers: Option<Browsers>,
+  ) {
+    let targets = browsers.into();
     let mut stylesheet = match StyleSheet::parse(&source, options) {
       Ok(stylesheet) => stylesheet,
       Err(e) => panic_with_test_error("minify_test_with_options", "parse", source, e),
     };
-    if let Err(e) = stylesheet.minify(MinifyOptions::default()) {
+    if let Err(e) = stylesheet.minify(MinifyOptions {
+      targets,
+      ..MinifyOptions::default()
+    }) {
       panic_with_test_error("minify_test_with_options", "minify", source, e);
     }
     let res = match stylesheet.to_css(PrinterOptions {
       minify: true,
+      targets,
       ..PrinterOptions::default()
     }) {
       Ok(res) => res,
@@ -314,6 +329,14 @@ mod tests {
 
   fn error_test(source: &str, error: ParserError) {
     let res = StyleSheet::parse(&source, ParserOptions::default());
+    match res {
+      Ok(_) => unreachable!(),
+      Err(e) => assert_eq!(e.kind, error),
+    }
+  }
+
+  fn error_test_with_options<'i>(source: &'i str, error: ParserError<'i>, options: ParserOptions<'i>) {
+    let res = StyleSheet::parse(&source, options);
     match res {
       Ok(_) => unreachable!(),
       Err(e) => assert_eq!(e.kind, error),
@@ -6716,6 +6739,82 @@ mod tests {
       ".test:where(.foo, .bar) {color:red}",
       ".test:where(.foo,.bar){color:red}",
     );
+
+    // Test scroll navigation controls pseudo-classes
+    let scroll_navigation_controls_options = ParserOptions {
+      flags: ParserFlags::SCROLL_NAVIGATION_CONTROLS,
+      ..ParserOptions::default()
+    };
+    minify_test_with_options(
+      "a:target-current { color: green }",
+      "a:target-current{color:green}",
+      scroll_navigation_controls_options.clone(),
+    );
+    minify_test_with_options(
+      "a:target-before { color: green }",
+      "a:target-before{color:green}",
+      scroll_navigation_controls_options.clone(),
+    );
+    minify_test_with_options(
+      "a:target-after { color: green }",
+      "a:target-after{color:green}",
+      scroll_navigation_controls_options.clone(),
+    );
+    minify_test_with_options(
+      ":is(a:target-before, a:target-after) { color: green }",
+      ":is(a:target-before,a:target-after){color:green}",
+      scroll_navigation_controls_options.clone(),
+    );
+    minify_test_with_options(
+      "a:where(:target-before, :target-after) { color: green }",
+      "a:where(:target-before,:target-after){color:green}",
+      scroll_navigation_controls_options.clone(),
+    );
+    // If the browser does not support it, it will output the `:is()` selector.
+    minify_test_with_options_and_browsers(
+      "a:target-before, a:target-after { color: green }",
+      ":is(a:target-before,a:target-after){color:green}",
+      scroll_navigation_controls_options.clone(),
+      Some(Browsers {
+        chrome: Some(130 << 16),
+        ..Browsers::default()
+      }),
+    );
+    minify_test_with_options_and_browsers(
+      "a:target-before, a:target-after { color: green }",
+      "a:target-before,a:target-after{color:green}",
+      scroll_navigation_controls_options.clone(),
+      Some(Browsers {
+        chrome: Some(150 << 16),
+        ..Browsers::default()
+      }),
+    );
+
+    error_test_with_options(
+      "a::before:target-current { color: green }",
+      ParserError::SelectorError(SelectorError::InvalidPseudoClassAfterPseudoElement),
+      ParserOptions {
+        flags: ParserFlags::SCROLL_NAVIGATION_CONTROLS,
+        ..ParserOptions::default()
+      },
+    );
+
+    let warnings = Some(Arc::new(RwLock::new(Vec::new())));
+    let _ = StyleSheet::parse(
+      "a:target-current { color: green }",
+      ParserOptions {
+        warnings: warnings.clone(),
+        ..ParserOptions::default()
+      },
+    )
+    .unwrap();
+    let warnings = Arc::try_unwrap(warnings.unwrap()).unwrap().into_inner().unwrap();
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(
+      warnings[0].kind,
+      ParserError::SelectorError(SelectorError::UnsupportedPseudoClass("target-current".into()))
+    );
+
     minify_test(":host {color:red}", ":host{color:red}");
     minify_test(":host(.foo) {color:red}", ":host(.foo){color:red}");
     minify_test("::slotted(span) {color:red", "::slotted(span){color:red}");
@@ -8656,6 +8755,70 @@ mod tests {
         ..Browsers::default()
       },
     );
+  }
+
+  #[test]
+  fn test_selector_compatibility() {
+    fn selectors(source: &str) -> crate::selector::SelectorList<'_> {
+      let stylesheet = StyleSheet::parse(
+        source,
+        ParserOptions {
+          flags: ParserFlags::SCROLL_NAVIGATION_CONTROLS,
+          ..ParserOptions::default()
+        },
+      )
+      .unwrap();
+      match &stylesheet.rules.0[0] {
+        CssRule::Style(rule) => rule.selectors.clone(),
+        _ => unreachable!(),
+      }
+    }
+
+    let target_current = selectors("a:target-current { color: green }");
+    assert!(!crate::selector::is_compatible(
+      &target_current.0,
+      Browsers {
+        chrome: Some(134 << 16),
+        ..Browsers::default()
+      }
+      .into()
+    ));
+    assert!(crate::selector::is_compatible(
+      &target_current.0,
+      Browsers {
+        chrome: Some(135 << 16),
+        ..Browsers::default()
+      }
+      .into()
+    ));
+
+    let target_before = selectors("a:target-before { color: green }");
+    assert!(!crate::selector::is_compatible(
+      &target_before.0,
+      Browsers {
+        chrome: Some(141 << 16),
+        ..Browsers::default()
+      }
+      .into()
+    ));
+    assert!(crate::selector::is_compatible(
+      &target_before.0,
+      Browsers {
+        chrome: Some(142 << 16),
+        ..Browsers::default()
+      }
+      .into()
+    ));
+
+    let target_after = selectors("a:target-after { color: green }");
+    assert!(crate::selector::is_compatible(
+      &target_after.0,
+      Browsers {
+        chrome: Some(142 << 16),
+        ..Browsers::default()
+      }
+      .into()
+    ));
   }
 
   #[test]
